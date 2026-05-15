@@ -53,16 +53,25 @@ async function getDashboardData() {
   const totaleRimborsi = note
     .filter((n) => n.statusRimborso === "Da rimborsare")
     .reduce((s, n) => s + n.importo, 0);
+  const fornitoriDaPagare = fattureRicevute
+    .filter((f) => f.status === "Da pagare")
+    .sort((a, b) => {
+      if (!a.scadenza) return 1;
+      if (!b.scadenza) return -1;
+      return new Date(a.scadenza).getTime() - new Date(b.scadenza).getTime();
+    });
+  const totaleFornitori = fornitoriDaPagare.reduce((s, f) => s + f.importo, 0);
 
   return {
     alerts,
-    stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi },
+    stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori },
     scadenze,
+    fornitoriDaPagare,
   };
 }
 
 export default async function DashboardPage() {
-  const { alerts, stats, scadenze } = await getDashboardData();
+  const { alerts, stats, scadenze, fornitoriDaPagare } = await getDashboardData();
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     day: "numeric",
@@ -254,7 +263,12 @@ export default async function DashboardPage() {
             color="#00c864"
           />
           <StatCard
-            label="Spese sostenute"
+            label="Fornitori da pagare"
+            value={formatEuro(stats.totaleFornitori)}
+            color={stats.totaleFornitori > 0 ? "#ffb400" : "var(--muted)"}
+          />
+          <StatCard
+            label="Fatture fornitori pagate"
             value={formatEuro(stats.totaleSpese)}
             color="var(--muted)"
           />
@@ -265,6 +279,51 @@ export default async function DashboardPage() {
           />
         </div>
       </section>
+
+      {/* Fatture fornitori da pagare */}
+      {fornitoriDaPagare.length > 0 && (
+        <section style={{ marginBottom: "2.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              Fatture fornitori da pagare
+            </div>
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+            <Link href="/fatture-ricevute?status=Da+pagare" style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--accent)", textDecoration: "none", letterSpacing: "0.04em" }}>
+              Vedi tutte →
+            </Link>
+          </div>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Fattura</th>
+                  <th>Fornitore</th>
+                  <th>Importo</th>
+                  <th>Scadenza</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fornitoriDaPagare.map((f) => {
+                  const urgente = isUrgent(f.scadenza, 15);
+                  return (
+                    <tr key={f.id}>
+                      <td style={{ fontWeight: 500, fontSize: "0.85rem" }}>{f.nome}</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>{f.fornitore ?? "—"}</td>
+                      <td><span className="num">{formatEuro(f.importo)}</span></td>
+                      <td>
+                        <span className="num" style={{ fontSize: "0.75rem", color: urgente ? "#ffb400" : "var(--muted)", fontWeight: urgente ? 600 : 400 }}>
+                          {f.scadenza ? new Date(f.scadenza).toLocaleDateString("it-IT") : "—"}
+                          {urgente && " ⚠"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Scadenze IVA 2026 */}
       <section>
