@@ -104,7 +104,7 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     importo,
     iva22: Math.round(importo * 0.22 * 100) / 100,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    status: (getSelect(p, "Status") as any) ?? "Da inviare",
+    status: (getSelect(p, "Status fattura") as any) ?? "Da inviare",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     trimestreIVA: getSelect(p, "Trimestre IVA") as any,
     fileFattura: getUrl(p, "File fattura"),

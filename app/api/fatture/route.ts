@@ -26,7 +26,7 @@ export async function PATCH(req: Request) {
     const properties: Record<string, unknown> = {};
 
     if (updates.status) {
-      properties["Status"] = { select: { name: updates.status } };
+      properties["Status fattura"] = { select: { name: updates.status } };
     }
     if (updates.trimestreIVA) {
       properties["Trimestre IVA"] = { select: { name: updates.trimestreIVA } };
