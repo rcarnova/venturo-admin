@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "◈" },
@@ -12,8 +12,15 @@ const NAV = [
   { href: "/note-spese", label: "Note Spese", icon: "◫" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ username }: { username?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="sidebar">
@@ -92,6 +99,37 @@ export default function Sidebar() {
           borderTop: "1px solid var(--border)",
         }}
       >
+        {username && (
+          <div style={{ marginBottom: "0.75rem" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.65rem",
+                color: "var(--text)",
+                textTransform: "capitalize",
+                marginBottom: "0.4rem",
+              }}
+            >
+              {username}
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.6rem",
+                color: "var(--muted)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              Esci →
+            </button>
+          </div>
+        )}
         <div
           style={{
             fontFamily: "var(--font-mono)",
