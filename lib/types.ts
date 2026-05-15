@@ -74,34 +74,6 @@ export interface Fornitore {
   note: string | null;
 }
 
-// ─── SPESE OPERATIVE ─────────────────────────────────────────────────────────
-export type SpesaCategoria =
-  | "Software"
-  | "Abbonamento"
-  | "Catering"
-  | "Altro";
-
-export type SpesaFrequenza = "Una tantum" | "Mensile" | "Annuale";
-export type SpesaStatus = "Attivo" | "Scaduto" | "Cancellato";
-export type SpesaPagamento = "Da pagare" | "Pagato";
-
-export interface SpesaOperativa {
-  id: string;
-  nome: string;
-  categoria: SpesaCategoria;
-  data: string | null;
-  importo: number;
-  frequenza: SpesaFrequenza | null;
-  prossimoRinnovo: string | null;
-  fornitore: string | null;
-  progetto: string | null;
-  pagamento: SpesaPagamento;
-  percentualeRitenuta: number | null;
-  nettoPagato: number | null;
-  fileFattura: string | null;
-  status: SpesaStatus;
-}
-
 // ─── NOTE SPESE ──────────────────────────────────────────────────────────────
 export type NotaSpeseOwner = "Rosario" | "Massimo" | "Arianna";
 export type NotaSpeseCategoria =

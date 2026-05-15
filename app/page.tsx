@@ -1,20 +1,20 @@
 import Link from "next/link";
-import { DB, queryAll, mapFattura, mapScadenza, mapSpesa, mapNotaSpese } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, isUrgent } from "@/lib/utils";
 import type { MondayAlert } from "@/lib/types";
 
 async function getDashboardData() {
-  const [fatturePages, scadenzePages, spesePages, notePages] =
+  const [fatturePages, scadenzePages, fattureRicevutePages, notePages] =
     await Promise.all([
       queryAll(DB.FATTURE),
       queryAll(DB.SCADENZE_IVA),
-      queryAll(DB.SPESE),
+      queryAll(DB.FATTURE_RICEVUTE),
       queryAll(DB.NOTE_SPESE),
     ]);
 
   const fatture = fatturePages.map(mapFattura);
   const scadenze = scadenzePages.map(mapScadenza);
-  const spese = spesePages.map(mapSpesa);
+  const fattureRicevute = fattureRicevutePages.map(mapFatturaRicevuta);
   const note = notePages.map(mapNotaSpese);
 
   const alerts: MondayAlert[] = [];
@@ -27,9 +27,9 @@ async function getDashboardData() {
   if (inRitardo.length > 0)
     alerts.push({ tipo: "fattura_ritardo", count: inRitardo.length, urgente: true, label: "Fatture in ritardo", href: "/fatture?status=In+ritardo" });
 
-  const daPagare = spese.filter((s) => s.pagamento === "Da pagare");
+  const daPagare = fattureRicevute.filter((f) => f.status === "Da pagare");
   if (daPagare.length > 0)
-    alerts.push({ tipo: "spesa_da_pagare", count: daPagare.length, urgente: false, label: "Spese da pagare", href: "/spese?pagamento=Da+pagare" });
+    alerts.push({ tipo: "spesa_da_pagare", count: daPagare.length, urgente: false, label: "Fatture fornitori da pagare", href: "/fatture-ricevute?status=Da+pagare" });
 
   const daRimborsare = note.filter((n) => n.statusRimborso === "Da rimborsare");
   if (daRimborsare.length > 0)
@@ -47,9 +47,9 @@ async function getDashboardData() {
   const totalePagato = fatture
     .filter((f) => f.status === "Pagata")
     .reduce((s, f) => s + f.importo, 0);
-  const totaleSpese = spese
-    .filter((s) => s.pagamento === "Pagato")
-    .reduce((s, sp) => s + sp.importo, 0);
+  const totaleSpese = fattureRicevute
+    .filter((f) => f.status === "Pagata")
+    .reduce((s, f) => s + f.importo, 0);
   const totaleRimborsi = note
     .filter((n) => n.statusRimborso === "Da rimborsare")
     .reduce((s, n) => s + n.importo, 0);

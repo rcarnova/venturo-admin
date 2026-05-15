@@ -8,7 +8,6 @@ import type {
   FatturaRicevuta,
   ScadenzaIVA,
   Fornitore,
-  SpesaOperativa,
   NotaSpese,
 } from "./types";
 import { calcolaTrimestre } from "./utils";
@@ -24,7 +23,6 @@ export const DB = {
   FATTURE_RICEVUTE: process.env.NOTION_DB_FATTURE_RICEVUTE!,
   SCADENZE_IVA: process.env.NOTION_DB_SCADENZE_IVA!,
   FORNITORI: process.env.NOTION_DB_FORNITORI!,
-  SPESE: process.env.NOTION_DB_SPESE!,
   NOTE_SPESE: process.env.NOTION_DB_NOTE_SPESE!,
 } as const;
 
@@ -156,35 +154,6 @@ export function mapFornitore(page: PageObjectResponse): Fornitore {
   };
 }
 
-export function mapSpesa(page: PageObjectResponse): SpesaOperativa {
-  const p = page.properties;
-  const importo = getNumber(p, "Importo");
-  const pctRitenuta = getNumber(p, "% Ritenuta");
-  const nettoPagato = pctRitenuta
-    ? Math.round((importo - (importo / 1.22) * (pctRitenuta / 100)) * 100) / 100
-    : importo;
-
-  return {
-    id: page.id,
-    nome: getTitle(p, "Spesa"),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    categoria: (getSelect(p, "Categoria") as any) ?? "Altro",
-    data: getDate(p, "Data"),
-    importo,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    frequenza: getSelect(p, "Frequenza") as any,
-    prossimoRinnovo: getDate(p, "Prossimo rinnovo"),
-    fornitore: getRelationName(p, "Fornitore"),
-    progetto: getRelationName(p, "Progetto"),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    pagamento: (getSelect(p, "Pagamento") as any) ?? "Da pagare",
-    percentualeRitenuta: pctRitenuta || null,
-    nettoPagato: getFormula(p, "Netto pagato") || nettoPagato,
-    fileFattura: getUrl(p, "File fattura"),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    status: (getSelect(p, "Status") as any) ?? "Attivo",
-  };
-}
 
 export function mapNotaSpese(page: PageObjectResponse): NotaSpese {
   const p = page.properties;

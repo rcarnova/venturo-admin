@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { DB, queryAll, mapFattura, mapScadenza, mapSpesa, mapNotaSpese } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { isUrgent } from "@/lib/utils";
 import type { MondayAlert } from "@/lib/types";
 
 export async function GET() {
   try {
-    const [fatturePages, scadenzePages, spesePages, notePages] =
+    const [fatturePages, scadenzePages, fattureRicevutePages, notePages] =
       await Promise.all([
         queryAll(DB.FATTURE),
         queryAll(DB.SCADENZE_IVA),
-        queryAll(DB.SPESE),
+        queryAll(DB.FATTURE_RICEVUTE),
         queryAll(DB.NOTE_SPESE),
       ]);
 
     const fatture = fatturePages.map(mapFattura);
     const scadenze = scadenzePages.map(mapScadenza);
-    const spese = spesePages.map(mapSpesa);
+    const fattureRicevute = fattureRicevutePages.map(mapFatturaRicevuta);
     const note = notePages.map(mapNotaSpese);
 
     const alerts: MondayAlert[] = [];
@@ -44,15 +44,15 @@ export async function GET() {
       });
     }
 
-    // 3. Spese da pagare
-    const daPagare = spese.filter((s) => s.pagamento === "Da pagare");
+    // 3. Fatture fornitori da pagare
+    const daPagare = fattureRicevute.filter((f) => f.status === "Da pagare");
     if (daPagare.length > 0) {
       alerts.push({
         tipo: "spesa_da_pagare",
         count: daPagare.length,
         urgente: false,
-        label: "Spese da pagare",
-        href: "/spese?pagamento=Da+pagare",
+        label: "Fatture fornitori da pagare",
+        href: "/fatture-ricevute?status=Da+pagare",
       });
     }
 

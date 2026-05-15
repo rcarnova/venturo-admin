@@ -9,7 +9,6 @@ const NAV = [
   { href: "/fatture-ricevute", label: "Fatture Ricevute", icon: "◧" },
   { href: "/scadenze-iva", label: "Scadenze IVA", icon: "◷" },
   { href: "/fornitori", label: "Fornitori", icon: "◉" },
-  { href: "/spese", label: "Spese Operative", icon: "◈" },
   { href: "/note-spese", label: "Note Spese", icon: "◫" },
 ];
 
