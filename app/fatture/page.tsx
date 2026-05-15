@@ -2,7 +2,6 @@ import { DB, queryAll, mapFattura } from "@/lib/notion";
 import { formatEuro, formatDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PageHeader } from "@/components/shared/PageHeader";
-import FattureActions from "./FattureActions";
 
 export const revalidate = 0;
 
@@ -100,13 +99,12 @@ export default async function FatturePage({
               <th>Trimestre IVA</th>
               <th>Data</th>
               <th>File</th>
-              <th>Azioni</th>
             </tr>
           </thead>
           <tbody>
             {fatture.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: "center", color: "var(--muted)", padding: "2rem" }}>
+                <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: "2rem" }}>
                   Nessuna fattura trovata
                 </td>
               </tr>
@@ -163,9 +161,6 @@ export default async function FatturePage({
                   ) : (
                     <span style={{ color: "var(--muted-2)", fontFamily: "var(--font-mono)", fontSize: "0.7rem" }}>—</span>
                   )}
-                </td>
-                <td>
-                  <FattureActions fattura={f} />
                 </td>
               </tr>
             ))}
