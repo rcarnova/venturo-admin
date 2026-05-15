@@ -1,0 +1,124 @@
+// ─── FATTURE ────────────────────────────────────────────────────────────────
+export type FatturaStatus =
+  | "Da inviare"
+  | "Inviata"
+  | "Pagata"
+  | "In ritardo";
+
+export type TrimestreIVA =
+  | "Q1 2026"
+  | "Q2 2026"
+  | "Q3 2026"
+  | "Q4 2026"
+  | "Q1 2027"
+  | "Q2 2027"
+  | "Q3 2027"
+  | "Q4 2027";
+
+export interface Fattura {
+  id: string;
+  nome: string;
+  importo: number;
+  iva22: number; // calcolata: importo * 0.22
+  status: FatturaStatus;
+  trimestreIVA: TrimestreIVA | null;
+  fileFattura: string | null;
+  cliente: string | null;
+  progetto: string | null;
+  createdAt: string;
+}
+
+// ─── SCADENZE IVA ────────────────────────────────────────────────────────────
+export type ScadenzaStatus =
+  | "Da calcolare"
+  | "Calcolata"
+  | "Versata"
+  | "In ritardo";
+
+export interface ScadenzaIVA {
+  id: string;
+  trimestre: TrimestreIVA;
+  periodo: string;
+  scadenzaVersamento: string;
+  totaleIVA: number | null;
+  status: ScadenzaStatus;
+}
+
+// ─── FORNITORI ───────────────────────────────────────────────────────────────
+export type FornitoreCategoria = "Freelance" | "Agenzia";
+export type FornitoreStatus = "Attivo" | "Inattivo";
+
+export interface Fornitore {
+  id: string;
+  nome: string;
+  categoria: FornitoreCategoria;
+  pIVA: string | null;
+  conIVA: boolean;
+  ritenuta: boolean;
+  percentualeRitenuta: number | null;
+  contatto: string | null;
+  email: string | null;
+  status: FornitoreStatus;
+  note: string | null;
+}
+
+// ─── SPESE OPERATIVE ─────────────────────────────────────────────────────────
+export type SpesaCategoria =
+  | "Software"
+  | "Abbonamento"
+  | "Catering"
+  | "Altro";
+
+export type SpesaFrequenza = "Una tantum" | "Mensile" | "Annuale";
+export type SpesaStatus = "Attivo" | "Scaduto" | "Cancellato";
+export type SpesaPagamento = "Da pagare" | "Pagato";
+
+export interface SpesaOperativa {
+  id: string;
+  nome: string;
+  categoria: SpesaCategoria;
+  data: string | null;
+  importo: number;
+  frequenza: SpesaFrequenza | null;
+  prossimoRinnovo: string | null;
+  fornitore: string | null;
+  progetto: string | null;
+  pagamento: SpesaPagamento;
+  percentualeRitenuta: number | null;
+  nettoPagato: number | null;
+  fileFattura: string | null;
+  status: SpesaStatus;
+}
+
+// ─── NOTE SPESE ──────────────────────────────────────────────────────────────
+export type NotaSpeseOwner = "Rosario" | "Massimo" | "Arianna";
+export type NotaSpeseCategoria =
+  | "Software"
+  | "Abbonamento"
+  | "Pasto-Catering"
+  | "Trasporto"
+  | "Cancelleria"
+  | "Altro";
+export type NotaSpeseStatus = "Da rimborsare" | "Rimborsato";
+
+export interface NotaSpese {
+  id: string;
+  descrizione: string;
+  owner: NotaSpeseOwner;
+  data: string | null;
+  importo: number;
+  categoria: NotaSpeseCategoria;
+  progetto: string | null;
+  statusRimborso: NotaSpeseStatus;
+  file: string | null;
+  protocolloLunedi: boolean;
+}
+
+// ─── MONDAY PROTOCOL ─────────────────────────────────────────────────────────
+export interface MondayAlert {
+  tipo: "fattura_da_inviare" | "fattura_ritardo" | "spesa_da_pagare" | "rimborso_da_liquidare" | "scadenza_iva";
+  count: number;
+  urgente: boolean;
+  label: string;
+  href: string;
+}
