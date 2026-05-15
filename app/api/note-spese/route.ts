@@ -6,12 +6,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    const filter = status
-      ? { property: "Status rimborso", select: { equals: status } }
-      : undefined;
-
-    const pages = await queryAll(DB.NOTE_SPESE, filter);
-    return NextResponse.json(pages.map(mapNotaSpese));
+    const pages = await queryAll(DB.NOTE_SPESE);
+    const all = pages.map(mapNotaSpese);
+    return NextResponse.json(status ? all.filter((n) => n.statusRimborso === status) : all);
   } catch (err) {
     console.error("[note-spese] GET error:", err);
     return NextResponse.json({ error: "Errore Notion" }, { status: 500 });

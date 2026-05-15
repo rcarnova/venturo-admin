@@ -6,17 +6,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    const filter = status
-      ? {
-          property: "Status",
-          select: { equals: status },
-        }
-      : undefined;
-
-    const pages = await queryAll(DB.FATTURE, filter, [
+    const pages = await queryAll(DB.FATTURE, undefined, [
       { property: "Fattura", direction: "descending" },
     ]);
-    const fatture = pages.map(mapFattura);
+    const all = pages.map(mapFattura);
+    const fatture = status ? all.filter((f) => f.status === status) : all;
     return NextResponse.json(fatture);
   } catch (err) {
     console.error("[fatture] GET error:", err);

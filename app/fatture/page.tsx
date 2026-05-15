@@ -7,11 +7,9 @@ import FattureActions from "./FattureActions";
 export const revalidate = 0;
 
 async function getFatture(status?: string) {
-  const filter = status
-    ? { property: "Status", select: { equals: status } }
-    : undefined;
-  const pages = await queryAll(DB.FATTURE, filter as never);
-  return pages.map(mapFattura);
+  const pages = await queryAll(DB.FATTURE);
+  const all = pages.map(mapFattura);
+  return status ? all.filter((f) => f.status === status) : all;
 }
 
 export default async function FatturePage({

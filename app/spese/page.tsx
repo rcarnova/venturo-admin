@@ -10,12 +10,11 @@ export default async function SpesePage({
 }: {
   searchParams: { pagamento?: string; categoria?: string };
 }) {
-  const filter = searchParams.pagamento
-    ? { property: "Pagamento", select: { equals: searchParams.pagamento } }
-    : undefined;
-
-  const pages = await queryAll(DB.SPESE, filter as never);
-  const spese = pages.map(mapSpesa);
+  const pages = await queryAll(DB.SPESE);
+  const all = pages.map(mapSpesa);
+  const spese = searchParams.pagamento
+    ? all.filter((s) => s.pagamento === searchParams.pagamento)
+    : all;
 
   const totale = spese.reduce((s, sp) => s + sp.importo, 0);
   const daPagare = spese.filter((s) => s.pagamento === "Da pagare");

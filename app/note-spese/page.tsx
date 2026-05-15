@@ -16,12 +16,11 @@ export default async function NoteSpeseePage({
 }: {
   searchParams: { status?: string; owner?: string };
 }) {
-  const filter = searchParams.status
-    ? { property: "Status rimborso", select: { equals: searchParams.status } }
-    : undefined;
-
-  const pages = await queryAll(DB.NOTE_SPESE, filter as never);
+  const pages = await queryAll(DB.NOTE_SPESE);
   let note = pages.map(mapNotaSpese);
+  if (searchParams.status) {
+    note = note.filter((n) => n.statusRimborso === searchParams.status);
+  }
 
   if (searchParams.owner) {
     note = note.filter((n) => n.owner === searchParams.owner);

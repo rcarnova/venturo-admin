@@ -6,12 +6,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const pagamento = searchParams.get("pagamento");
 
-    const filter = pagamento
-      ? { property: "Pagamento", select: { equals: pagamento } }
-      : undefined;
-
-    const pages = await queryAll(DB.SPESE, filter);
-    return NextResponse.json(pages.map(mapSpesa));
+    const pages = await queryAll(DB.SPESE);
+    const all = pages.map(mapSpesa);
+    return NextResponse.json(pagamento ? all.filter((s) => s.pagamento === pagamento) : all);
   } catch (err) {
     console.error("[spese] GET error:", err);
     return NextResponse.json({ error: "Errore Notion" }, { status: 500 });
