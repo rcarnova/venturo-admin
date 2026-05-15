@@ -22,7 +22,7 @@ export default async function FattureRicevutePage({
   const fatture = await getFattureRicevute(searchParams.status);
 
   const totale = fatture.reduce((s, f) => s + f.importo, 0);
-  const daPagere = fatture.filter((f) => f.status === "Da pagare");
+  const daPagere = fatture.filter((f) => f.status === "Ricevuta");
   const inScadenza = fatture.filter((f) => isUrgent(f.scadenza, 15));
 
   const statuses = Array.from(new Set(fatture.map((f) => f.status).filter(Boolean)));
@@ -214,7 +214,7 @@ export default async function FattureRicevutePage({
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Da pagare": "badge-warning",
+    "Ricevuta": "badge-warning",
     "Pagata": "badge-success",
     "In ritardo": "badge-error",
   };

@@ -45,14 +45,14 @@ export async function GET() {
     }
 
     // 3. Fatture fornitori da pagare
-    const daPagare = fattureRicevute.filter((f) => f.status === "Da pagare");
+    const daPagare = fattureRicevute.filter((f) => f.status === "Ricevuta");
     if (daPagare.length > 0) {
       alerts.push({
         tipo: "spesa_da_pagare",
         count: daPagare.length,
         urgente: false,
         label: "Fatture fornitori da pagare",
-        href: "/fatture-ricevute?status=Da+pagare",
+        href: "/fatture-ricevute?status=Ricevuta",
       });
     }
 

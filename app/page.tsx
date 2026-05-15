@@ -27,9 +27,9 @@ async function getDashboardData() {
   if (inRitardo.length > 0)
     alerts.push({ tipo: "fattura_ritardo", count: inRitardo.length, urgente: true, label: "Fatture in ritardo", href: "/fatture?status=In+ritardo" });
 
-  const daPagare = fattureRicevute.filter((f) => f.status === "Da pagare");
+  const daPagare = fattureRicevute.filter((f) => f.status === "Ricevuta");
   if (daPagare.length > 0)
-    alerts.push({ tipo: "spesa_da_pagare", count: daPagare.length, urgente: false, label: "Fatture fornitori da pagare", href: "/fatture-ricevute?status=Da+pagare" });
+    alerts.push({ tipo: "spesa_da_pagare", count: daPagare.length, urgente: false, label: "Fatture fornitori da pagare", href: "/fatture-ricevute?status=Ricevuta" });
 
   const daRimborsare = note.filter((n) => n.statusRimborso === "Da rimborsare");
   if (daRimborsare.length > 0)
@@ -54,7 +54,7 @@ async function getDashboardData() {
     .filter((n) => n.statusRimborso === "Da rimborsare")
     .reduce((s, n) => s + n.importo, 0);
   const fornitoriDaPagare = fattureRicevute
-    .filter((f) => f.status === "Da pagare")
+    .filter((f) => f.status === "Ricevuta")
     .sort((a, b) => {
       if (!a.scadenza) return 1;
       if (!b.scadenza) return -1;
@@ -288,7 +288,7 @@ export default async function DashboardPage() {
               Fatture fornitori da pagare
             </div>
             <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
-            <Link href="/fatture-ricevute?status=Da+pagare" style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--accent)", textDecoration: "none", letterSpacing: "0.04em" }}>
+            <Link href="/fatture-ricevute?status=Ricevuta" style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--accent)", textDecoration: "none", letterSpacing: "0.04em" }}>
               Vedi tutte →
             </Link>
           </div>
