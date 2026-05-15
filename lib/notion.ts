@@ -20,6 +20,7 @@ export const notion = new Client({
 // ─── Database IDs ────────────────────────────────────────────────────────────
 export const DB = {
   FATTURE: process.env.NOTION_DB_FATTURE!,
+  FATTURE_RICEVUTE: process.env.NOTION_DB_FATTURE_RICEVUTE!,
   SCADENZE_IVA: process.env.NOTION_DB_SCADENZE_IVA!,
   FORNITORI: process.env.NOTION_DB_FORNITORI!,
   SPESE: process.env.NOTION_DB_SPESE!,
