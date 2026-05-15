@@ -122,7 +122,7 @@ export function mapScadenza(page: PageObjectResponse): ScadenzaIVA {
     trimestre: getTitle(p, "Trimestre") as any,
     periodo: getRichText(p, "Periodo"),
     scadenzaVersamento: getDate(p, "Scadenza versamento") ?? "",
-    totaleIVA: p["Totale IVA"]?.number ?? null,
+    totaleIVA: getNumber(p, "Totale IVA") || null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status") as any) ?? "Da calcolare",
   };
