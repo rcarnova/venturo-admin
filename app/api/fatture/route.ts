@@ -31,6 +31,9 @@ export async function PATCH(req: Request) {
     if (updates.trimestreIVA) {
       properties["Trimestre IVA"] = { select: { name: updates.trimestreIVA } };
     }
+    if (updates.dataIncasso) {
+      properties["Incassata"] = { date: { start: updates.dataIncasso } };
+    }
     if (updates.fileFattura !== undefined) {
       properties["File fattura"] = { url: updates.fileFattura };
     }

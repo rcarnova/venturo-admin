@@ -26,8 +26,10 @@ export default function FattureActions({ fattura }: { fattura: Fattura }) {
     setLoading(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: Record<string, any> = { id: fattura.id, status };
-    if (status === "Pagata" && !fattura.trimestreIVA && fattura.dataInvio) {
-      body.trimestreIVA = calcolaTrimestre(fattura.dataInvio);
+    if (status === "Pagata" && !fattura.dataIncasso) {
+      const today = new Date().toISOString().split("T")[0];
+      body.dataIncasso = today;
+      body.trimestreIVA = calcolaTrimestre(today);
     }
     await fetch("/api/fatture", {
       method: "PATCH",

@@ -100,9 +100,10 @@ export function mapFattura(page: PageObjectResponse): Fattura {
   const p = page.properties;
   const importo = getNumber(p, "Importo");
   const dataInvio = getDate(p, "Data invio");
+  const dataIncasso = getDate(p, "Incassata");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const trimestreNotion = getSelect(p, "Trimestre IVA") as any;
-  const trimestreIVA = trimestreNotion ?? (dataInvio ? calcolaTrimestre(dataInvio) : null);
+  const trimestreIVA = trimestreNotion ?? (dataIncasso ? calcolaTrimestre(dataIncasso) : null);
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
@@ -112,6 +113,7 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     status: (getSelect(p, "Status fattura") as any) ?? "Da inviare",
     trimestreIVA,
     dataInvio,
+    dataIncasso,
     fileFattura: getUrl(p, "File fattura"),
     cliente: getRelationName(p, "Clienti"),
     progetto: getRelationName(p, "Progetto"),

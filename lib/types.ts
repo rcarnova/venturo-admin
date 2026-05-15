@@ -20,6 +20,7 @@ export interface Fattura {
   status: FatturaStatus;
   trimestreIVA: TrimestreIVA | null;
   dataInvio: string | null;
+  dataIncasso: string | null;
   fileFattura: string | null;
   cliente: string | null;
   progetto: string | null;
