@@ -10,7 +10,13 @@ async function getData() {
     queryAll(DB.SCADENZE_IVA),
     queryAll(DB.FATTURE),
   ]);
-  const scadenze = scadenzePages.map(mapScadenza);
+  const scadenze = scadenzePages
+    .map(mapScadenza)
+    .sort((a, b) => {
+      const [qa, ya] = a.trimestre.split(" ");
+      const [qb, yb] = b.trimestre.split(" ");
+      return Number(ya) - Number(yb) || Number(qa[1]) - Number(qb[1]);
+    });
   const fatture = fatturePages.map(mapFattura);
   return { scadenze, fatture };
 }
