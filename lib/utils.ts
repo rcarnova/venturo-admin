@@ -22,6 +22,13 @@ export function formatDate(dateStr: string | null): string {
   });
 }
 
+export function calcolaTrimestre(dateStr: string): import("./types").TrimestreIVA | null {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  const q = Math.ceil((d.getMonth() + 1) / 3);
+  return `Q${q} ${d.getFullYear()}` as import("./types").TrimestreIVA;
+}
+
 export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
   if (!dateStr) return false;
   const target = new Date(dateStr);

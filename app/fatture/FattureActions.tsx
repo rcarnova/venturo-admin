@@ -3,9 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Fattura, FatturaStatus, TrimestreIVA } from "@/lib/types";
+import { calcolaTrimestre } from "@/lib/utils";
 
 const STATUSES: FatturaStatus[] = ["Da inviare", "Inviata", "Pagata", "In ritardo"];
-const TRIMESTRI: TrimestreIVA[] = ["Q1 2026", "Q2 2026", "Q3 2026", "Q4 2026", "Q1 2027", "Q2 2027"];
+
+function buildTrimestri(): TrimestreIVA[] {
+  const out: TrimestreIVA[] = [];
+  for (const y of [2024, 2025, 2026, 2027, 2028]) {
+    for (const q of [1, 2, 3, 4]) {
+      out.push(`Q${q} ${y}` as TrimestreIVA);
+    }
+  }
+  return out;
+}
+const TRIMESTRI = buildTrimestri();
 
 export default function FattureActions({ fattura }: { fattura: Fattura }) {
   const [loading, setLoading] = useState(false);
@@ -13,10 +24,15 @@ export default function FattureActions({ fattura }: { fattura: Fattura }) {
 
   async function updateStatus(status: FatturaStatus) {
     setLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: Record<string, any> = { id: fattura.id, status };
+    if (status === "Pagata" && !fattura.trimestreIVA && fattura.dataInvio) {
+      body.trimestreIVA = calcolaTrimestre(fattura.dataInvio);
+    }
     await fetch("/api/fatture", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: fattura.id, status }),
+      body: JSON.stringify(body),
     });
     router.refresh();
     setLoading(false);

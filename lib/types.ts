@@ -6,22 +6,20 @@ export type FatturaStatus =
   | "In ritardo";
 
 export type TrimestreIVA =
-  | "Q1 2026"
-  | "Q2 2026"
-  | "Q3 2026"
-  | "Q4 2026"
-  | "Q1 2027"
-  | "Q2 2027"
-  | "Q3 2027"
-  | "Q4 2027";
+  | "Q1 2024" | "Q2 2024" | "Q3 2024" | "Q4 2024"
+  | "Q1 2025" | "Q2 2025" | "Q3 2025" | "Q4 2025"
+  | "Q1 2026" | "Q2 2026" | "Q3 2026" | "Q4 2026"
+  | "Q1 2027" | "Q2 2027" | "Q3 2027" | "Q4 2027"
+  | "Q1 2028" | "Q2 2028" | "Q3 2028" | "Q4 2028";
 
 export interface Fattura {
   id: string;
   nome: string;
   importo: number;
-  iva22: number; // calcolata: importo * 0.22
+  iva22: number;
   status: FatturaStatus;
   trimestreIVA: TrimestreIVA | null;
+  dataInvio: string | null;
   fileFattura: string | null;
   cliente: string | null;
   progetto: string | null;

@@ -10,6 +10,7 @@ import type {
   SpesaOperativa,
   NotaSpese,
 } from "./types";
+import { calcolaTrimestre } from "./utils";
 
 // ─── Client singleton ────────────────────────────────────────────────────────
 export const notion = new Client({
@@ -98,6 +99,10 @@ export async function queryAll(
 export function mapFattura(page: PageObjectResponse): Fattura {
   const p = page.properties;
   const importo = getNumber(p, "Importo");
+  const dataInvio = getDate(p, "Data invio");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trimestreNotion = getSelect(p, "Trimestre IVA") as any;
+  const trimestreIVA = trimestreNotion ?? (dataInvio ? calcolaTrimestre(dataInvio) : null);
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
@@ -105,10 +110,10 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     iva22: Math.round(importo * 0.22 * 100) / 100,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? "Da inviare",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    trimestreIVA: getSelect(p, "Trimestre IVA") as any,
+    trimestreIVA,
+    dataInvio,
     fileFattura: getUrl(p, "File fattura"),
-    cliente: getRelationName(p, "Cliente"),
+    cliente: getRelationName(p, "Clienti"),
     progetto: getRelationName(p, "Progetto"),
     createdAt: page.created_time,
   };
