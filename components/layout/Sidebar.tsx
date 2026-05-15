@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "◈" },
-  { href: "/fatture", label: "Fatture", icon: "◻" },
+  { href: "/fatture", label: "Fatture Emesse", icon: "◻" },
+  { href: "/fatture-ricevute", label: "Fatture Ricevute", icon: "◧" },
   { href: "/scadenze-iva", label: "Scadenze IVA", icon: "◷" },
   { href: "/fornitori", label: "Fornitori", icon: "◉" },
   { href: "/spese", label: "Spese Operative", icon: "◈" },

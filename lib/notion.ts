@@ -5,6 +5,7 @@ import type {
 } from "@notionhq/client/build/src/api-endpoints";
 import type {
   Fattura,
+  FatturaRicevuta,
   ScadenzaIVA,
   Fornitore,
   SpesaOperativa,
@@ -201,5 +202,21 @@ export function mapNotaSpese(page: PageObjectResponse): NotaSpese {
     statusRimborso: (getSelect(p, "Status rimborso") as any) ?? "Da rimborsare",
     file: getUrl(p, "File"),
     protocolloLunedi: getCheckbox(p, "Protocollo lunedì"),
+  };
+}
+
+export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
+  const p = page.properties;
+  return {
+    id: page.id,
+    nome: getTitle(p, "Fattura"),
+    fornitore: getRelationName(p, "Fornitore"),
+    dataFattura: getDate(p, "Data fattura"),
+    scadenza: getDate(p, "Scadenza"),
+    importo: getNumber(p, "Importo"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    status: (getSelect(p, "Status fattura") as any) ?? null,
+    progetto: getRelationName(p, "Progetto"),
+    fileFattura: getUrl(p, "File fattura"),
   };
 }

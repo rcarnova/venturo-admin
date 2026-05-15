@@ -27,6 +27,19 @@ export interface Fattura {
   createdAt: string;
 }
 
+// ─── FATTURE RICEVUTE ────────────────────────────────────────────────────────
+export interface FatturaRicevuta {
+  id: string;
+  nome: string;
+  fornitore: string | null;
+  dataFattura: string | null;
+  scadenza: string | null;
+  importo: number;
+  status: string | null;
+  progetto: string | null;
+  fileFattura: string | null;
+}
+
 // ─── SCADENZE IVA ────────────────────────────────────────────────────────────
 export type ScadenzaStatus =
   | "Da calcolare"
