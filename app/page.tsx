@@ -1,20 +1,26 @@
 import Link from "next/link";
-import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapFornitore, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, isUrgent } from "@/lib/utils";
 import type { MondayAlert } from "@/lib/types";
 
 async function getDashboardData() {
-  const [fatturePages, scadenzePages, fattureRicevutePages, notePages] =
+  const [fatturePages, scadenzePages, fattureRicevutePages, notePages, fornitori] =
     await Promise.all([
       queryAll(DB.FATTURE),
       queryAll(DB.SCADENZE_IVA),
       queryAll(DB.FATTURE_RICEVUTE),
       queryAll(DB.NOTE_SPESE),
+      queryAll(DB.FORNITORI),
     ]);
 
+  const fornitoriMap = new Map(fornitori.map((p) => [p.id, mapFornitore(p).nome]));
   const fatture = fatturePages.map(mapFattura);
   const scadenze = scadenzePages.map(mapScadenza);
-  const fattureRicevute = fattureRicevutePages.map(mapFatturaRicevuta);
+  const fattureRicevute = fattureRicevutePages.map((p) => {
+    const f = mapFatturaRicevuta(p);
+    if (f.fornitore) f.fornitore = fornitoriMap.get(f.fornitore) ?? f.fornitore;
+    return f;
+  });
   const note = notePages.map(mapNotaSpese);
 
   const alerts: MondayAlert[] = [];
