@@ -7,9 +7,10 @@ export const revalidate = 0;
 async function getFattureRicevute(status?: string) {
   const pages = await queryAll(DB.FATTURE_RICEVUTE);
   const all = pages.map(mapFatturaRicevuta).sort((a, b) => {
-    if (!a.dataFattura) return 1;
-    if (!b.dataFattura) return -1;
-    return new Date(b.dataFattura).getTime() - new Date(a.dataFattura).getTime();
+    // Ordina per scadenza ascendente (le più urgenti prima), senza scadenza in fondo
+    if (!a.scadenza) return 1;
+    if (!b.scadenza) return -1;
+    return new Date(a.scadenza).getTime() - new Date(b.scadenza).getTime();
   });
   return status ? all.filter((f) => f.status === status) : all;
 }
@@ -22,7 +23,7 @@ export default async function FattureRicevutePage({
   const fatture = await getFattureRicevute(searchParams.status);
 
   const totale = fatture.reduce((s, f) => s + f.importo, 0);
-  const daPagere = fatture.filter((f) => f.status === "Ricevuta");
+  const ricevute = fatture.filter((f) => f.status === "Ricevuta");
   const inScadenza = fatture.filter((f) => isUrgent(f.scadenza, 15));
 
   const statuses = Array.from(new Set(fatture.map((f) => f.status).filter(Boolean)));
@@ -98,11 +99,11 @@ export default async function FattureRicevutePage({
         <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>
           Totale: <span className="num" style={{ color: "var(--text)" }}>{formatEuro(totale)}</span>
         </div>
-        {daPagere.length > 0 && (
+        {ricevute.length > 0 && (
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>
-            Da pagare:{" "}
+            Ricevute da pagare:{" "}
             <span className="num" style={{ color: "#ffb400" }}>
-              {formatEuro(daPagere.reduce((s, f) => s + f.importo, 0))}
+              {formatEuro(ricevute.reduce((s, f) => s + f.importo, 0))}
             </span>
           </div>
         )}

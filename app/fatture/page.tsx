@@ -97,7 +97,7 @@ export default async function FatturePage({
               <th>IVA 22%</th>
               <th>Status</th>
               <th>Trimestre IVA</th>
-              <th>Data</th>
+              <th>Data invio</th>
               <th>File</th>
             </tr>
           </thead>
@@ -139,7 +139,7 @@ export default async function FatturePage({
                 </td>
                 <td>
                   <span className="num" style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                    {formatDate(f.createdAt)}
+                    {formatDate(f.dataInvio)}
                   </span>
                 </td>
                 <td>
