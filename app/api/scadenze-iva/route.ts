@@ -18,7 +18,7 @@ export async function PATCH(req: Request) {
     const properties: Record<string, unknown> = {};
 
     if (totaleIVA !== undefined) {
-      properties["Totale IVA"] = { number: totaleIVA };
+      properties["IVA da versare"] = { number: totaleIVA };
     }
     if (status) {
       properties["Status"] = { select: { name: status } };
