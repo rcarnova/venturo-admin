@@ -1,12 +1,21 @@
-import { DB, queryAll, mapFatturaRicevuta } from "@/lib/notion";
+import { DB, queryAll, mapFatturaRicevuta, mapFornitore } from "@/lib/notion";
 import { formatEuro, formatDate, isUrgent } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 
 export const revalidate = 0;
 
 async function getFattureRicevute(status?: string) {
-  const pages = await queryAll(DB.FATTURE_RICEVUTE);
-  const all = pages.map(mapFatturaRicevuta).sort((a, b) => {
+  const [pages, fornitori] = await Promise.all([
+    queryAll(DB.FATTURE_RICEVUTE),
+    queryAll(DB.FORNITORI),
+  ]);
+  const fornitoriMap = new Map(fornitori.map((p) => [p.id, mapFornitore(p).nome]));
+
+  const all = pages.map((page) => {
+    const f = mapFatturaRicevuta(page);
+    if (f.fornitore) f.fornitore = fornitoriMap.get(f.fornitore) ?? f.fornitore;
+    return f;
+  }).sort((a, b) => {
     // Ordina per scadenza ascendente (le più urgenti prima), senza scadenza in fondo
     if (!a.scadenza) return 1;
     if (!b.scadenza) return -1;
