@@ -101,9 +101,7 @@ export function mapFattura(page: PageObjectResponse): Fattura {
   const importo = getNumber(p, "Importo");
   const dataInvio = getDate(p, "Data invio");
   const dataIncasso = getDate(p, "Incassata");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const trimestreNotion = getSelect(p, "Trimestre IVA") as any;
-  const trimestreIVA = trimestreNotion ?? (dataIncasso ? calcolaTrimestre(dataIncasso) : null);
+  const trimestreIVA = dataIncasso ? calcolaTrimestre(dataIncasso) : null;
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
