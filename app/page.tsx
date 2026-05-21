@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapFornitore, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, isUrgent } from "@/lib/utils";
+import { formatEuro, formatDate, isUrgent } from "@/lib/utils";
 import type { MondayAlert } from "@/lib/types";
 
 async function getDashboardData() {
@@ -68,16 +68,26 @@ async function getDashboardData() {
     });
   const totaleFornitori = fornitoriDaPagare.reduce((s, f) => s + f.importo, 0);
 
+  const today = new Date();
+  const prossimaScadenza = scadenze
+    .filter((s) => s.status !== "Versata" && s.scadenzaVersamento && new Date(s.scadenzaVersamento) >= today)
+    .sort((a, b) => new Date(a.scadenzaVersamento).getTime() - new Date(b.scadenzaVersamento).getTime())[0] ?? null;
+
+  const ivaProximaScadenza = prossimaScadenza
+    ? fatture.filter((f) => f.trimestreIVA === prossimaScadenza.trimestre).reduce((s, f) => s + f.iva22, 0)
+    : 0;
+
   return {
     alerts,
-    stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori },
+    stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
     scadenze,
     fornitoriDaPagare,
+    prossimaScadenza,
   };
 }
 
 export default async function DashboardPage() {
-  const { alerts, stats, scadenze, fornitoriDaPagare } = await getDashboardData();
+  const { alerts, stats, scadenze, fornitoriDaPagare, prossimaScadenza } = await getDashboardData();
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     day: "numeric",
@@ -283,6 +293,13 @@ export default async function DashboardPage() {
             value={formatEuro(stats.totaleRimborsi)}
             color={stats.totaleRimborsi > 0 ? "#ffb400" : "var(--muted)"}
           />
+          {prossimaScadenza && (
+            <StatCard
+              label={`IVA ${prossimaScadenza.trimestre} · scad. ${formatDate(prossimaScadenza.scadenzaVersamento)}`}
+              value={formatEuro(stats.ivaProximaScadenza)}
+              color={isUrgent(prossimaScadenza.scadenzaVersamento, 30) ? "#ffb400" : "var(--accent)"}
+            />
+          )}
         </div>
       </section>
 
