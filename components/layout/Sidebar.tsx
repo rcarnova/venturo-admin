@@ -3,14 +3,39 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-const NAV = [
+const NAV_GESTIONE = [
   { href: "/", label: "Dashboard", icon: "◈" },
   { href: "/fatture", label: "Fatture Emesse", icon: "◻" },
   { href: "/fatture-ricevute", label: "Fatture Ricevute", icon: "◧" },
-  { href: "/scadenze-iva", label: "Scadenze IVA", icon: "◷" },
+  { href: "/clienti", label: "Clienti", icon: "◎" },
   { href: "/fornitori", label: "Fornitori", icon: "◉" },
   { href: "/note-spese", label: "Note Spese", icon: "◫" },
 ];
+
+const NAV_ANALISI = [
+  { href: "/scadenziario", label: "Scadenziario", icon: "◷" },
+  { href: "/cassa", label: "Proiezione Cassa", icon: "◈" },
+  { href: "/scadenze-iva", label: "Scadenze IVA", icon: "◑" },
+  { href: "/report-iva", label: "Report IVA", icon: "◐" },
+];
+
+function NavSection({ label, items, pathname }: { label: string; items: typeof NAV_GESTIONE; pathname: string }) {
+  return (
+    <>
+      <div style={{ padding: "0.5rem 1rem 0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        {label}
+      </div>
+      {items.map((item) => (
+        <Link key={item.href} href={item.href} className={`sidebar-link ${pathname === item.href ? "active" : ""}`}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", opacity: 0.6, width: "1rem", textAlign: "center" }}>
+            {item.icon}
+          </span>
+          {item.label}
+        </Link>
+      ))}
+    </>
+  );
+}
 
 export default function Sidebar({ username }: { username?: string }) {
   const pathname = usePathname();
@@ -58,38 +83,8 @@ export default function Sidebar({ username }: { username?: string }) {
 
       {/* Nav */}
       <nav style={{ padding: "0.75rem 0", flex: 1 }}>
-        <div
-          style={{
-            padding: "0.5rem 1rem 0.25rem",
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.6rem",
-            color: "var(--muted-2)",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          Gestione
-        </div>
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`sidebar-link ${pathname === item.href ? "active" : ""}`}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.75rem",
-                opacity: 0.6,
-                width: "1rem",
-                textAlign: "center",
-              }}
-            >
-              {item.icon}
-            </span>
-            {item.label}
-          </Link>
-        ))}
+        <NavSection label="Gestione" items={NAV_GESTIONE} pathname={pathname} />
+        <NavSection label="Analisi" items={NAV_ANALISI} pathname={pathname} />
       </nav>
 
       {/* Footer */}

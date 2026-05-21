@@ -51,6 +51,17 @@ export interface ScadenzaCalcolata {
   urgent: boolean;
 }
 
+// ─── CLIENTI ─────────────────────────────────────────────────────────────────
+export interface Cliente {
+  id: string;
+  nome: string;
+  status: string | null;
+  potenziale2026: string | null;
+  prossimoContatto: string | null;
+  ultimoContatto: string | null;
+  noteNurturing: string | null;
+}
+
 // ─── FORNITORI ───────────────────────────────────────────────────────────────
 export type FornitoreCategoria = "Freelance" | "Agenzia";
 export type FornitoreStatus = "Attivo" | "Inattivo";

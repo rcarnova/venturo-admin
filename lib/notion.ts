@@ -8,6 +8,7 @@ import type {
   FatturaRicevuta,
   Fornitore,
   NotaSpese,
+  Cliente,
 } from "./types";
 import { calcolaTrimestre } from "./utils";
 
@@ -23,6 +24,7 @@ export const DB = {
   SCADENZE_IVA: process.env.NOTION_DB_SCADENZE_IVA!,
   FORNITORI: process.env.NOTION_DB_FORNITORI!,
   NOTE_SPESE: process.env.NOTION_DB_NOTE_SPESE!,
+  CLIENTI: process.env.NOTION_DB_CLIENTI!,
 } as const;
 
 // ─── Property helpers ────────────────────────────────────────────────────────
@@ -154,6 +156,20 @@ export function mapNotaSpese(page: PageObjectResponse): NotaSpese {
     statusRimborso: (getSelect(p, "Status rimborso") as any) ?? "Da rimborsare",
     file: getUrl(p, "File"),
     protocolloLunedi: getCheckbox(p, "Protocollo lunedì"),
+  };
+}
+
+export function mapCliente(page: PageObjectResponse): Cliente {
+  const p = page.properties;
+  return {
+    id: page.id,
+    nome: getTitle(p, "Nome Cliente"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    status: (p["Status"] as any)?.status?.name ?? null,
+    potenziale2026: getSelect(p, "Potenziale 2026"),
+    prossimoContatto: getDate(p, "Prossimo contatto"),
+    ultimoContatto: getDate(p, "Ultimo contatto"),
+    noteNurturing: getRichText(p, "Note nurturing") || null,
   };
 }
 
