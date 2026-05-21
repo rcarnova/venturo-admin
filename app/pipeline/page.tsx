@@ -84,7 +84,7 @@ export default async function PipelinePage() {
       />
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <StatCard label="Pipeline aperta" value={formatEuro(totaleOpen)} color="var(--accent)" note={`${open.length} deal${open.length !== 1 ? "s" : ""}`} />
         <StatCard label="Pipeline pesata" value={formatEuro(Math.round(pipelinePesata))} color="var(--text)" note="ponderata per probabilità" />
         <StatCard label="Chiusi vinti" value={formatEuro(totaleWon)} color="var(--sage)" note={`${won.length} deal${won.length !== 1 ? "s" : ""}`} />

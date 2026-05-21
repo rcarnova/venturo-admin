@@ -37,9 +37,9 @@ function NavSection({ label, items, pathname }: { label: string; items: typeof N
 const MOBILE_NAV = [
   { href: "/", label: "Home", icon: "◈" },
   { href: "/fatture", label: "Fatture", icon: "◻" },
+  { href: "/pipeline", label: "Pipeline", icon: "◬" },
   { href: "/scadenziario", label: "Agenda", icon: "◷" },
   { href: "/cassa", label: "Cassa", icon: "◑" },
-  { href: "/report-iva", label: "IVA", icon: "◐" },
 ];
 
 export default function Sidebar({ username }: { username?: string }) {
