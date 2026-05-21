@@ -22,14 +22,10 @@ const NAV_ANALISI = [
 function NavSection({ label, items, pathname }: { label: string; items: typeof NAV_GESTIONE; pathname: string }) {
   return (
     <>
-      <div style={{ padding: "0.5rem 1rem 0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-        {label}
-      </div>
+      <div className="sidebar-section-label">{label}</div>
       {items.map((item) => (
         <Link key={item.href} href={item.href} className={`sidebar-link ${pathname === item.href ? "active" : ""}`}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", opacity: 0.6, width: "1rem", textAlign: "center" }}>
-            {item.icon}
-          </span>
+          <span className="sidebar-icon">{item.icon}</span>
           {item.label}
         </Link>
       ))}
@@ -71,33 +67,17 @@ export default function Sidebar({ username }: { username?: string }) {
     </nav>
     <aside className="sidebar">
       {/* Logo */}
-      <div
-        style={{
-          padding: "1.5rem 1.25rem 1rem",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "var(--font-grotesk)",
-            fontWeight: 700,
-            fontSize: "1rem",
-            letterSpacing: "-0.02em",
-            color: "var(--text)",
-          }}
-        >
-          Venturo
+      <div style={{ padding: "1.25rem 1rem 1rem", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          {/* Slash motif */}
+          <svg width="10" height="16" viewBox="0 0 10 16" fill="none" aria-hidden>
+            <line x1="8" y1="1" x2="2" y2="15" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          <div style={{ fontFamily: "var(--font-grotesk)", fontWeight: 700, fontSize: "0.95rem", letterSpacing: "-0.03em", color: "var(--text)" }}>
+            Venturo
+          </div>
         </div>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.6rem",
-            color: "var(--muted)",
-            marginTop: "2px",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-          }}
-        >
+        <div className="v-eyebrow" style={{ marginTop: "3px", paddingLeft: "14px" }}>
           Admin Console
         </div>
       </div>
@@ -116,55 +96,22 @@ export default function Sidebar({ username }: { username?: string }) {
         }}
       >
         {username && (
-          <div style={{ marginBottom: "0.75rem" }}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.65rem",
-                color: "var(--text)",
-                textTransform: "capitalize",
-                marginBottom: "0.4rem",
-              }}
-            >
+          <div style={{ marginBottom: "0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--ink-300)", textTransform: "capitalize" }}>
               {username}
-            </div>
+            </span>
             <button
               onClick={handleLogout}
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.6rem",
-                color: "var(--muted)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-              }}
+              style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", padding: 0, letterSpacing: "0.06em", textTransform: "uppercase", transition: "color var(--dur-fast) var(--ease-out)" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--ink-100)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--muted)")}
             >
               Esci →
             </button>
           </div>
         )}
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.6rem",
-            color: "var(--muted-2)",
-            letterSpacing: "0.03em",
-          }}
-        >
-          Studio Miller / Venturo
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.6rem",
-            color: "var(--muted-2)",
-            marginTop: "2px",
-          }}
-        >
-          © {new Date().getFullYear()}
+        <div className="v-eyebrow" style={{ color: "var(--muted-2)" }}>
+          Studio Miller · {new Date().getFullYear()}
         </div>
       </div>
     </aside>
