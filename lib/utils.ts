@@ -22,6 +22,18 @@ export function formatDate(dateStr: string | null): string {
   });
 }
 
+export function scadenzaVersamentoIVA(trimestre: string): string {
+  const [q, year] = trimestre.split(" ");
+  const y = Number(year);
+  const dates: Record<string, string> = {
+    Q1: `16/05/${y}`,
+    Q2: `20/08/${y}`,
+    Q3: `16/11/${y}`,
+    Q4: `16/03/${y + 1}`,
+  };
+  return dates[q] ?? "—";
+}
+
 export function calcolaTrimestre(dateStr: string): import("./types").TrimestreIVA | null {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;

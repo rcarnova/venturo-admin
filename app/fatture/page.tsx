@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura } from "@/lib/notion";
-import { formatEuro, formatDate } from "@/lib/utils";
+import { formatEuro, formatDate, scadenzaVersamentoIVA } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PageHeader } from "@/components/shared/PageHeader";
 
@@ -96,7 +96,7 @@ export default async function FatturePage({
               <th>Importo</th>
               <th>IVA 22%</th>
               <th>Status</th>
-              <th>Trimestre IVA</th>
+              <th>Versamento IVA</th>
               <th>Data invio</th>
               <th>File</th>
             </tr>
@@ -127,12 +127,14 @@ export default async function FatturePage({
                 </td>
                 <td>
                   {f.trimestreIVA ? (
-                    <span
-                      className="badge badge-neutral"
-                      style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem" }}
-                    >
-                      {f.trimestreIVA}
-                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                      <span className="badge badge-neutral" style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem" }}>
+                        {f.trimestreIVA}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)" }}>
+                        {scadenzaVersamentoIVA(f.trimestreIVA)}
+                      </span>
+                    </div>
                   ) : (
                     <span style={{ color: "var(--muted-2)", fontFamily: "var(--font-mono)", fontSize: "0.7rem" }}>—</span>
                   )}
