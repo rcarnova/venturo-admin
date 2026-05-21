@@ -115,39 +115,19 @@ export default async function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: "2.5rem" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem" }}>
-          <h1
-            style={{
-              fontFamily: "var(--font-grotesk)",
-              fontWeight: 700,
-              fontSize: "1.6rem",
-              letterSpacing: "-0.04em",
-            }}
-          >
-            Dashboard
-          </h1>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.65rem",
-              color: "var(--muted)",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-            }}
-          >
-            {today}
-          </span>
-        </div>
-        <p
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.7rem",
-            color: "var(--muted)",
-            marginTop: "4px",
+            fontFamily: "var(--font-grotesk)",
+            fontWeight: 700,
+            fontSize: "clamp(1.2rem, 5vw, 1.6rem)",
+            letterSpacing: "-0.04em",
           }}
         >
-          Studio Miller / Venturo
+          Dashboard
+        </h1>
+        <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", marginTop: "4px" }}>
+          {today}
         </p>
       </div>
 
@@ -279,9 +259,10 @@ export default async function DashboardPage() {
           Panoramica finanziaria
         </div>
         <div
+          className="stat-grid"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
             gap: "0.75rem",
           }}
         >
@@ -332,12 +313,12 @@ export default async function DashboardPage() {
               Vedi tutte →
             </Link>
           </div>
-          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+          <div className="table-scroll" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px" }}>
             <table className="admin-table">
               <thead>
                 <tr>
                   <th>Fattura</th>
-                  <th>Fornitore</th>
+                  <th className="col-hide-mobile">Fornitore</th>
                   <th>Importo</th>
                   <th>Scadenza</th>
                 </tr>
@@ -348,7 +329,7 @@ export default async function DashboardPage() {
                   return (
                     <tr key={f.id}>
                       <td style={{ fontWeight: 500, fontSize: "0.85rem" }}>{f.nome}</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>{f.fornitore ?? "—"}</td>
+                      <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--muted)" }}>{f.fornitore ?? "—"}</td>
                       <td><span className="num">{formatEuro(f.importo)}</span></td>
                       <td>
                         <span className="num" style={{ fontSize: "0.75rem", color: urgente ? "#ffb400" : "var(--muted)", fontWeight: urgente ? 600 : 400 }}>

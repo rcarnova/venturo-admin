@@ -192,3 +192,113 @@ body {
   border-radius: 6px;
   padding: 1.25rem 1.5rem;
 }
+
+/* ── App layout ──────────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: calc(100vh - 3px);
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem 2.5rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 3px);
+  min-width: 0;
+}
+
+/* ── Table scroll wrapper ─────────────────────────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Mobile bottom nav ────────────────────────────────────────────────────── */
+.mobile-nav {
+  display: none;
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .main-content {
+    padding: 1.25rem 1rem 5.5rem;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 0.4rem 0;
+    padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
+    z-index: 100;
+    justify-content: space-around;
+    align-items: stretch;
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 0.3rem 0.5rem;
+    color: var(--muted);
+    text-decoration: none;
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    flex: 1;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--accent);
+  }
+
+  .mobile-nav-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  /* Stat grid: 2 colonne fisse su mobile */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Riduce padding stat card su mobile */
+  .stat-card {
+    padding: 0.9rem 1rem;
+  }
+
+  /* Alert card più compatta */
+  .alert-card {
+    padding: 0.75rem 1rem;
+  }
+
+  /* Tabelle scrollabili orizzontalmente */
+  .admin-table th,
+  .admin-table td {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.78rem;
+  }
+
+  /* Nascondi colonne non essenziali nelle tabelle dashboard */
+  .col-hide-mobile {
+    display: none;
+  }
+
+  .neon-bar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+}

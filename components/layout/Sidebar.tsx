@@ -37,6 +37,14 @@ function NavSection({ label, items, pathname }: { label: string; items: typeof N
   );
 }
 
+const MOBILE_NAV = [
+  { href: "/", label: "Home", icon: "◈" },
+  { href: "/fatture", label: "Fatture", icon: "◻" },
+  { href: "/scadenziario", label: "Agenda", icon: "◷" },
+  { href: "/cassa", label: "Cassa", icon: "◑" },
+  { href: "/report-iva", label: "IVA", icon: "◐" },
+];
+
 export default function Sidebar({ username }: { username?: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -48,6 +56,19 @@ export default function Sidebar({ username }: { username?: string }) {
   }
 
   return (
+    <>
+    <nav className="mobile-nav">
+      {MOBILE_NAV.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={`mobile-nav-item ${pathname === item.href ? "active" : ""}`}
+        >
+          <span className="mobile-nav-icon">{item.icon}</span>
+          {item.label}
+        </Link>
+      ))}
+    </nav>
     <aside className="sidebar">
       {/* Logo */}
       <div
@@ -147,5 +168,6 @@ export default function Sidebar({ username }: { username?: string }) {
         </div>
       </div>
     </aside>
+    </>
   );
 }
