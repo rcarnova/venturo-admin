@@ -6,7 +6,6 @@ import type {
 import type {
   Fattura,
   FatturaRicevuta,
-  ScadenzaIVA,
   Fornitore,
   NotaSpese,
 } from "./types";
@@ -116,20 +115,6 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     cliente: getRelationName(p, "Clienti"),
     progetto: getRelationName(p, "Progetto"),
     createdAt: page.created_time,
-  };
-}
-
-export function mapScadenza(page: PageObjectResponse): ScadenzaIVA {
-  const p = page.properties;
-  return {
-    id: page.id,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    trimestre: getTitle(p, "Trimestre") as any,
-    periodo: getRichText(p, "Periodo"),
-    scadenzaVersamento: getDate(p, "Data versamento") ?? "",
-    totaleIVA: getNumber(p, "IVA da versare") || null,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    status: (getSelect(p, "Status") as any) ?? "Da calcolare",
   };
 }
 

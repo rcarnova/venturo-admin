@@ -41,6 +41,17 @@ export function calcolaTrimestre(dateStr: string): import("./types").TrimestreIV
   return `Q${q} ${d.getFullYear()}` as import("./types").TrimestreIVA;
 }
 
+export function periodoTrimestre(trimestre: string): string {
+  const [q, year] = trimestre.split(" ");
+  const periods: Record<string, string> = {
+    Q1: `Gen–Mar ${year}`,
+    Q2: `Apr–Giu ${year}`,
+    Q3: `Lug–Set ${year}`,
+    Q4: `Ott–Dic ${year}`,
+  };
+  return periods[q] ?? trimestre;
+}
+
 export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
   if (!dateStr) return false;
   const target = new Date(dateStr);

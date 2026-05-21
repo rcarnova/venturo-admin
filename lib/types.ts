@@ -40,20 +40,15 @@ export interface FatturaRicevuta {
   fileFattura: string | null;
 }
 
-// ─── SCADENZE IVA ────────────────────────────────────────────────────────────
-export type ScadenzaStatus =
-  | "Da calcolare"
-  | "Calcolata"
-  | "Versata"
-  | "In ritardo";
-
-export interface ScadenzaIVA {
-  id: string;
+// ─── SCADENZE IVA (calcolate dalle fatture) ──────────────────────────────────
+export interface ScadenzaCalcolata {
   trimestre: TrimestreIVA;
   periodo: string;
-  scadenzaVersamento: string;
-  totaleIVA: number | null;
-  status: ScadenzaStatus;
+  scadenzaStr: string;
+  scadenzaIso: string;
+  totaleIVA: number;
+  versata: boolean;
+  urgent: boolean;
 }
 
 // ─── FORNITORI ───────────────────────────────────────────────────────────────

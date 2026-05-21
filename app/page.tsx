@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { DB, queryAll, mapFattura, mapScadenza, mapFatturaRicevuta, mapFornitore, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, formatDate, isUrgent } from "@/lib/utils";
-import type { MondayAlert } from "@/lib/types";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese } from "@/lib/notion";
+import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
+import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 async function getDashboardData() {
-  const [fatturePages, scadenzePages, fattureRicevutePages, notePages, fornitori] =
+  const [fatturePages, fattureRicevutePages, notePages, fornitori] =
     await Promise.all([
       queryAll(DB.FATTURE),
-      queryAll(DB.SCADENZE_IVA),
       queryAll(DB.FATTURE_RICEVUTE),
       queryAll(DB.NOTE_SPESE),
       queryAll(DB.FORNITORI),
@@ -15,7 +14,6 @@ async function getDashboardData() {
 
   const fornitoriMap = new Map(fornitori.map((p) => [p.id, mapFornitore(p).nome]));
   const fatture = fatturePages.map(mapFattura);
-  const scadenze = scadenzePages.map(mapScadenza);
   const fattureRicevute = fattureRicevutePages.map((p) => {
     const f = mapFatturaRicevuta(p);
     if (f.fornitore) f.fornitore = fornitoriMap.get(f.fornitore) ?? f.fornitore;
@@ -41,12 +39,6 @@ async function getDashboardData() {
   if (daRimborsare.length > 0)
     alerts.push({ tipo: "rimborso_da_liquidare", count: daRimborsare.length, urgente: false, label: "Rimborsi da liquidare", href: "/note-spese?status=Da+rimborsare" });
 
-  const scadenzeImminenti = scadenze.filter(
-    (s) => s.status === "Da calcolare" && isUrgent(s.scadenzaVersamento, 15)
-  );
-  if (scadenzeImminenti.length > 0)
-    alerts.push({ tipo: "scadenza_iva", count: scadenzeImminenti.length, urgente: true, label: "Scadenze IVA imminenti", href: "/scadenze-iva" });
-
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
   const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.importo, 0);
@@ -68,26 +60,51 @@ async function getDashboardData() {
     });
   const totaleFornitori = fornitoriDaPagare.reduce((s, f) => s + f.importo, 0);
 
+  // Calcola scadenze IVA direttamente dalle fatture pagate
   const today = new Date();
-  const prossimaScadenza = scadenze
-    .filter((s) => s.status !== "Versata" && s.scadenzaVersamento && new Date(s.scadenzaVersamento) >= today)
-    .sort((a, b) => new Date(a.scadenzaVersamento).getTime() - new Date(b.scadenzaVersamento).getTime())[0] ?? null;
+  const ivaPerTrimestre = new Map<string, number>();
+  for (const f of fatture) {
+    if (f.trimestreIVA && f.status === "Pagata") {
+      ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
+    }
+  }
+  const scadenzeCalcolate: ScadenzaCalcolata[] = Array.from(ivaPerTrimestre.entries())
+    .map(([trimestre, totaleIVA]) => {
+      const scadenzaStr = scadenzaVersamentoIVA(trimestre);
+      const [d, m, y] = scadenzaStr.split("/").map(Number);
+      const scadenzaDate = new Date(y, m - 1, d);
+      const versata = scadenzaDate < today;
+      const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+      return {
+        trimestre: trimestre as ScadenzaCalcolata["trimestre"],
+        periodo: periodoTrimestre(trimestre),
+        scadenzaStr,
+        scadenzaIso: scadenzaDate.toISOString(),
+        totaleIVA,
+        versata,
+        urgent: !versata && diffDays <= 15,
+      };
+    })
+    .sort((a, b) => new Date(a.scadenzaIso).getTime() - new Date(b.scadenzaIso).getTime());
 
-  const ivaProximaScadenza = prossimaScadenza
-    ? fatture.filter((f) => f.trimestreIVA === prossimaScadenza.trimestre).reduce((s, f) => s + f.iva22, 0)
-    : 0;
+  const prossimaScadenza = scadenzeCalcolate.find((s) => !s.versata) ?? null;
+  const ivaProximaScadenza = prossimaScadenza?.totaleIVA ?? 0;
+
+  const scadenzeImminenti = scadenzeCalcolate.filter((s) => s.urgent);
+  if (scadenzeImminenti.length > 0)
+    alerts.push({ tipo: "scadenza_iva", count: scadenzeImminenti.length, urgente: true, label: "Scadenze IVA imminenti", href: "/scadenze-iva" });
 
   return {
     alerts,
     stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
-    scadenze,
+    scadenzeCalcolate,
     fornitoriDaPagare,
     prossimaScadenza,
   };
 }
 
 export default async function DashboardPage() {
-  const { alerts, stats, scadenze, fornitoriDaPagare, prossimaScadenza } = await getDashboardData();
+  const { alerts, stats, scadenzeCalcolate, fornitoriDaPagare, prossimaScadenza } = await getDashboardData();
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     day: "numeric",
@@ -295,9 +312,9 @@ export default async function DashboardPage() {
           />
           {prossimaScadenza && (
             <StatCard
-              label={`IVA ${prossimaScadenza.trimestre} · scad. ${formatDate(prossimaScadenza.scadenzaVersamento)}`}
+              label={`IVA ${prossimaScadenza.trimestre} · scad. ${prossimaScadenza.scadenzaStr}`}
               value={formatEuro(stats.ivaProximaScadenza)}
-              color={isUrgent(prossimaScadenza.scadenzaVersamento, 30) ? "#ffb400" : "var(--accent)"}
+              color={isUrgent(prossimaScadenza.scadenzaIso, 30) ? "#ffb400" : "var(--accent)"}
             />
           )}
         </div>
@@ -349,21 +366,20 @@ export default async function DashboardPage() {
       )}
 
       {/* Scadenze IVA */}
-      <section>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
-          Scadenze IVA
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {scadenze.map((s) => {
-            const urgent = isUrgent(s.scadenzaVersamento, 15) && s.status === "Da calcolare";
-            return (
+      {scadenzeCalcolate.length > 0 && (
+        <section>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            Scadenze IVA
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {scadenzeCalcolate.map((s) => (
               <div
-                key={s.id}
+                key={s.trimestre}
                 style={{
                   fontFamily: "var(--font-mono)",
                   padding: "0.5rem 0.85rem",
-                  background: urgent ? "rgba(255,60,60,0.04)" : "var(--surface-2)",
-                  border: `1px solid ${urgent ? "rgba(255,60,60,0.25)" : "var(--border)"}`,
+                  background: s.urgent ? "rgba(255,60,60,0.04)" : "var(--surface-2)",
+                  border: `1px solid ${s.urgent ? "rgba(255,60,60,0.25)" : "var(--border)"}`,
                   borderRadius: "4px",
                   display: "flex",
                   alignItems: "center",
@@ -372,17 +388,13 @@ export default async function DashboardPage() {
               >
                 <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text)" }}>{s.trimestre}</span>
                 <span style={{ color: "var(--muted-2)" }}>·</span>
-                <span style={{ fontSize: "0.7rem", color: urgent ? "#ff4444" : "var(--muted)" }}>
-                  {s.scadenzaVersamento
-                    ? new Date(s.scadenzaVersamento).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
-                    : "—"}
-                </span>
-                <StatusBadgeInline status={s.status} />
+                <span style={{ fontSize: "0.7rem", color: s.urgent ? "#ff4444" : "var(--muted)" }}>{s.scadenzaStr}</span>
+                <StatusBadgeInline status={s.versata ? "Versata" : "Da versare"} />
               </div>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -414,10 +426,8 @@ function StatCard({ label, value, color }: { label: string; value: string; color
 
 function StatusBadgeInline({ status }: { status: string }) {
   const map: Record<string, string> = {
-    "Da calcolare": "badge-warning",
-    Calcolata: "badge-accent",
     Versata: "badge-success",
-    "In ritardo": "badge-error",
+    "Da versare": "badge-warning",
   };
   return <span className={`badge ${map[status] ?? "badge-neutral"}`}>{status}</span>;
 }
