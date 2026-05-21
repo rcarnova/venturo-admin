@@ -119,8 +119,8 @@ async function getData() {
   // Proiezione ottimistica: uscite certe + tutte le entrate attese
   const saldoOttimistico = SALDO_INIZIALE + totaleAtteso + flussi.reduce((s, f) => s + f.importo, 0);
 
-  // Flussi nei prossimi 90 giorni
-  const flussi90 = flussi.filter((f) => f.data <= in90);
+  // Flussi nei prossimi 90 giorni — IVA sempre inclusa perché scadenza fissa
+  const flussi90 = flussi.filter((f) => f.data <= in90 || f.tipo === "iva");
 
   return { flussi90, flussiTutti: flussi, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico };
 }
@@ -142,7 +142,7 @@ export default async function CassaPage() {
     <div>
       <PageHeader
         title="Proiezione Cassa"
-        subtitle="Prossimi 90 giorni · saldo iniziale €10.000"
+        subtitle="Prossimi 90 giorni + scadenze IVA · saldo iniziale €10.000"
       />
 
       {/* Cards di sintesi */}
