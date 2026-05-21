@@ -10,6 +10,7 @@ const NAV_GESTIONE = [
   { href: "/clienti", label: "Clienti", icon: "◎" },
   { href: "/fornitori", label: "Fornitori", icon: "◉" },
   { href: "/note-spese", label: "Note Spese", icon: "◫" },
+  { href: "/pipeline", label: "Pipeline", icon: "◬" },
 ];
 
 const NAV_ANALISI = [

@@ -104,6 +104,25 @@ export interface NotaSpese {
   protocolloLunedi: boolean;
 }
 
+// ─── PIPELINE SALES ──────────────────────────────────────────────────────────
+export type DealStatus = "Open" | "Won" | "Lost" | "Freeze";
+export type DealProbabilita = "Alta 75-100%" | "Media 40-74%" | "Bassa 0-39%" | null;
+export type DealFonte = "Passaparola" | "Evento" | "Partner" | "Inbound" | "Altro" | "Cliente" | "Amici" | null;
+
+export interface Deal {
+  id: string;
+  opportunita: string;
+  status: DealStatus;
+  valore: number;
+  probabilita: DealProbabilita;
+  fonte: DealFonte;
+  dataChiusura: string | null;
+  nomeContatto: string | null;
+  ruoloContatto: string | null;
+  clienteId: string | null;
+  progettoId: string | null;
+}
+
 // ─── MONDAY PROTOCOL ─────────────────────────────────────────────────────────
 export interface MondayAlert {
   tipo: "fattura_da_inviare" | "fattura_ritardo" | "spesa_da_pagare" | "rimborso_da_liquidare" | "scadenza_iva";

@@ -9,6 +9,7 @@ import type {
   Fornitore,
   NotaSpese,
   Cliente,
+  Deal,
 } from "./types";
 import { calcolaTrimestre } from "./utils";
 
@@ -25,6 +26,7 @@ export const DB = {
   FORNITORI: process.env.NOTION_DB_FORNITORI!,
   NOTE_SPESE: process.env.NOTION_DB_NOTE_SPESE!,
   CLIENTI: process.env.NOTION_DB_CLIENTI!,
+  PIPELINE: process.env.NOTION_DB_PIPELINE!,
 } as const;
 
 // ─── Property helpers ────────────────────────────────────────────────────────
@@ -170,6 +172,23 @@ export function mapCliente(page: PageObjectResponse): Cliente {
     prossimoContatto: getDate(p, "Prossimo contatto"),
     ultimoContatto: getDate(p, "Ultimo contatto"),
     noteNurturing: getRichText(p, "Note nurturing") || null,
+  };
+}
+
+export function mapDeal(page: PageObjectResponse): Deal {
+  const p = page.properties;
+  return {
+    id: page.id,
+    opportunita: getTitle(p, "Opportunità"),
+    status: (getSelect(p, "Status") as Deal["status"]) ?? "Open",
+    valore: getNumber(p, "Valore (€)"),
+    probabilita: getSelect(p, "Probabilità %") as Deal["probabilita"],
+    fonte: getSelect(p, "Fonte") as Deal["fonte"],
+    dataChiusura: getDate(p, "Data chiusura"),
+    nomeContatto: getRichText(p, "Nome contatto") || null,
+    ruoloContatto: getRichText(p, "Ruolo contatto") || null,
+    clienteId: getRelationName(p, "Cliente collegato"),
+    progettoId: getRelationName(p, "Progetto generato"),
   };
 }
 
