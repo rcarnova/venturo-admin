@@ -6,14 +6,21 @@ export const revalidate = 0;
 
 const SALDO_INIZIALE = 10_000;
 
+const MUTUO = {
+  importoRata: 136.79,
+  prossimaRata: new Date(2026, 5, 21), // 21 giugno 2026
+  nRateRimanenti: 27,
+  totaleRimanente: 3_656.84,
+};
+
 type Flusso = {
   id: string;
   data: Date;
   dataStr: string;
   label: string;
-  importo: number; // positivo = entrata, negativo = uscita
-  tipo: "entrata" | "uscita_fornitore" | "iva";
-  certo: boolean; // false = atteso ma non confermato
+  importo: number;
+  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo";
+  certo: boolean;
 };
 
 async function getData() {
@@ -77,6 +84,25 @@ async function getData() {
     });
   }
 
+  // Rate mutuo nei prossimi 90 giorni
+  for (let i = 0; i < MUTUO.nRateRimanenti; i++) {
+    const d = new Date(MUTUO.prossimaRata);
+    d.setMonth(d.getMonth() + i);
+    d.setHours(0, 0, 0, 0);
+    if (d > in90) break;
+    if (d >= today) {
+      flussi.push({
+        id: `mutuo-${i}`,
+        data: d,
+        dataStr: d.toLocaleDateString("it-IT"),
+        label: `Rata mutuo (${i + 1}/${MUTUO.nRateRimanenti})`,
+        importo: -MUTUO.importoRata,
+        tipo: "mutuo",
+        certo: true,
+      });
+    }
+  }
+
   // Rimborsi spese aperti
   const totRimborsi = note.filter((n) => n.statusRimborso === "Da rimborsare").reduce((s, n) => s + n.importo, 0);
 
@@ -135,6 +161,12 @@ export default async function CassaPage() {
           value={formatEuro(saldoOttimistico)}
           color="var(--accent)"
           note="se incassi tutto"
+        />
+        <SaldoCard
+          label="Mutuo residuo"
+          value={formatEuro(MUTUO.totaleRimanente)}
+          color="var(--muted)"
+          note={`${MUTUO.nRateRimanenti} rate · €${MUTUO.importoRata.toFixed(2)}/mese`}
         />
         {totRimborsi > 0 && (
           <SaldoCard label="Rimborsi aperti" value={formatEuro(totRimborsi)} color="#ffb400" note="non inclusi nelle uscite" />
@@ -197,8 +229,8 @@ export default async function CassaPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td>
-                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : "Fornitore"}
+                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                      {s.tipo === "iva" ? "IVA" : s.tipo === "mutuo" ? "Mutuo" : "Fornitore"}
                     </span>
                   </td>
                   <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>
