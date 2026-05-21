@@ -348,62 +348,39 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Scadenze IVA 2026 */}
+      {/* Scadenze IVA */}
       <section>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.65rem",
-            color: "var(--muted)",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Scadenze IVA 2026
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+          Scadenze IVA
         </div>
-        <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Trimestre</th>
-                <th>Periodo</th>
-                <th>Scadenza</th>
-                <th>Totale IVA</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scadenze.map((s) => {
-                const urgent = isUrgent(s.scadenzaVersamento, 15) && s.status === "Da calcolare";
-                return (
-                  <tr key={s.id} style={urgent ? { background: "rgba(255,60,60,0.03)" } : {}}>
-                    <td>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", fontWeight: 500 }}>
-                        {s.trimestre}
-                      </span>
-                    </td>
-                    <td style={{ color: "var(--muted)", fontFamily: "var(--font-mono)", fontSize: "0.75rem" }}>{s.periodo}</td>
-                    <td>
-                      <span className={`num ${urgent ? "text-red-400" : ""}`} style={{ fontSize: "0.8rem", color: urgent ? "#ff4444" : "var(--text)" }}>
-                        {s.scadenzaVersamento
-                          ? new Date(s.scadenzaVersamento).toLocaleDateString("it-IT")
-                          : "—"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="num" style={{ color: s.totaleIVA ? "var(--accent)" : "var(--muted-2)" }}>
-                        {s.totaleIVA ? formatEuro(s.totaleIVA) : "—"}
-                      </span>
-                    </td>
-                    <td>
-                      <StatusBadgeInline status={s.status} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          {scadenze.map((s) => {
+            const urgent = isUrgent(s.scadenzaVersamento, 15) && s.status === "Da calcolare";
+            return (
+              <div
+                key={s.id}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  padding: "0.5rem 0.85rem",
+                  background: urgent ? "rgba(255,60,60,0.04)" : "var(--surface-2)",
+                  border: `1px solid ${urgent ? "rgba(255,60,60,0.25)" : "var(--border)"}`,
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                }}
+              >
+                <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text)" }}>{s.trimestre}</span>
+                <span style={{ color: "var(--muted-2)" }}>·</span>
+                <span style={{ fontSize: "0.7rem", color: urgent ? "#ff4444" : "var(--muted)" }}>
+                  {s.scadenzaVersamento
+                    ? new Date(s.scadenzaVersamento).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
+                    : "—"}
+                </span>
+                <StatusBadgeInline status={s.status} />
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
