@@ -252,6 +252,11 @@ export default async function DashboardPage() {
           }}
         >
           <StatCard
+            label="Saldo in banca"
+            value={formatEuro(13_708)}
+            color="var(--text)"
+          />
+          <StatCard
             label="Da incassare"
             value={formatEuro(stats.totaleDaIncassare)}
             color="var(--accent)"
