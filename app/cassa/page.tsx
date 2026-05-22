@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 
 export const revalidate = 0;
 
-const SALDO_INIZIALE = 10_000;
+const SALDO_INIZIALE = 13_708;
 
 const MUTUO = {
   importoRata: 136.79,
@@ -161,7 +161,7 @@ export default async function CassaPage() {
     <div>
       <PageHeader
         title="Proiezione Cassa"
-        subtitle="Prossimi 90 giorni + scadenze IVA · saldo iniziale €10.000"
+        subtitle="Prossimi 90 giorni + scadenze IVA · saldo attuale €13.708"
       />
 
       {/* Cards di sintesi */}

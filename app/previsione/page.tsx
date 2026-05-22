@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 export const revalidate = 0;
 
 const ANNO = 2026;
-const SALDO_INIZIALE = 10_000;
+const SALDO_INIZIALE = 13_708;
 
 const MUTUO = {
   importoRata: 136.79,
@@ -176,7 +176,7 @@ export default async function PrevisioneAnnualePage() {
     <div>
       <PageHeader
         title={`Previsione ${ANNO}`}
-        subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale €10.000`}
+        subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale €13.708`}
       />
 
       {/* Semestre badge */}
