@@ -48,7 +48,7 @@ async function getData() {
 
   // Entrate attese — fatture "Inviata" (certe ma senza data)
   const fattureAttese = fatture.filter((f) => f.status === "Inviata");
-  const totaleAtteso = fattureAttese.reduce((s, f) => s + f.importo, 0);
+  const totaleAtteso = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
   // Uscite certe — fatture ricevute con scadenza
   for (const f of ricevute) {
@@ -209,7 +209,8 @@ export default async function CassaPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
             {fattureAttese.map((f) => (
               <span key={f.id} style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.2)", borderRadius: "3px", padding: "0.25rem 0.6rem", color: "var(--text)" }}>
-                {f.nome} <span style={{ color: "#00c864" }}>+{formatEuro(f.importo)}</span>
+                {f.nome} <span style={{ color: "#00c864" }}>+{formatEuro(f.incassoNetto)}</span>
+                <span style={{ color: "var(--muted-2)", marginLeft: "0.3rem" }}>({formatEuro(f.importo)} imponibile)</span>
               </span>
             ))}
           </div>

@@ -15,8 +15,10 @@ export type TrimestreIVA =
 export interface Fattura {
   id: string;
   nome: string;
-  importo: number;
-  iva22: number;
+  importo: number;       // imponibile (valore servizi)
+  incassoNetto: number;  // cash effettivo: importo × 1.04 × 1.02 = importo × 1.0608
+  iva22: number;         // importo × 1.04 × 0.22 (corretta, include INPS rivalsa)
+  ritenuta: number;      // importo × 1.04 × 0.20 (trattenuta dal cliente)
   status: FatturaStatus;
   trimestreIVA: TrimestreIVA | null;
   dataInvio: string | null;

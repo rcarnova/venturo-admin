@@ -101,15 +101,21 @@ export async function queryAll(
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 export function mapFattura(page: PageObjectResponse): Fattura {
   const p = page.properties;
-  const importo = getNumber(p, "Importo");
+  const importo = getNumber(p, "Importo"); // imponibile (valore servizi)
   const dataInvio = getDate(p, "Data invio");
   const dataIncasso = getDate(p, "Incassata");
   const trimestreIVA = dataIncasso ? calcolaTrimestre(dataIncasso) : null;
+  const baseIva = importo * 1.04; // imponibile + INPS rivalsa 4%
+  const iva22 = Math.round(baseIva * 0.22 * 100) / 100;
+  const ritenuta = Math.round(baseIva * 0.20 * 100) / 100;
+  const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // × 1.0608
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
     importo,
-    iva22: Math.round(importo * 0.22 * 100) / 100,
+    incassoNetto,
+    iva22,
+    ritenuta,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? "Da inviare",
     trimestreIVA,

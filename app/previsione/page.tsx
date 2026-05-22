@@ -63,7 +63,7 @@ async function getData() {
 
   const daIncassare = fatture
     .filter(f => f.status === "Inviata")
-    .reduce((s, f) => s + f.importo, 0);
+    .reduce((s, f) => s + f.incassoNetto, 0);
 
   // Won deals: residuo da fatturare × fattore semestre
   const fatturePerProgetto = new Map<string, number>();
@@ -74,7 +74,8 @@ async function getData() {
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
   const daFatturareWon = wonDeals.reduce((s, d) => {
     const fatturato = d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0;
-    return s + Math.max(0, d.valore - fatturato) * fattore;
+    const residuoServizio = Math.max(0, d.valore - fatturato);
+    return s + residuoServizio * fattore * 1.0608; // converti in incasso netto
   }, 0);
 
   const totaleEntrateAttese = daIncassare + daFatturareWon;
@@ -203,12 +204,12 @@ export default async function PrevisioneAnnualePage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note="fatture già incassate nel 2026" />
-            <RigaValore label="Da incassare" value={formatEuro(daIncassare)} color="var(--accent)" note="fatture inviate, non ancora pagate" />
+            <RigaValore label="Da incassare" value={formatEuro(Math.round(daIncassare))} color="var(--accent)" note="netto ritenuta IRPEF · fatture inviate" />
             <RigaValore
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
               value={formatEuro(Math.round(daFatturareWon))}
               color={semestre === 1 ? "var(--text)" : "#ffb400"}
-              note={`su ${formatEuro(totaleVenduto)} totale Won`}
+              note={`netto ritenuta · su ${formatEuro(totaleVenduto)} imponibile Won`}
             />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <RigaValore label="Totale entrate attese" value={formatEuro(Math.round(totaleEntrateAttese))} color="var(--text)" bold />

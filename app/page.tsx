@@ -42,10 +42,10 @@ async function getDashboardData() {
 
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
-  const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.importo, 0);
+  const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.incassoNetto, 0);
   const totalePagato = fatture
     .filter((f) => f.status === "Pagata")
-    .reduce((s, f) => s + f.importo, 0);
+    .reduce((s, f) => s + f.incassoNetto, 0);
   const totaleSpese = fattureRicevute
     .filter((f) => f.status === "Pagata")
     .reduce((s, f) => s + f.importo, 0);
