@@ -105,12 +105,14 @@ async function getData() {
     uscite.push({ data: d, mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
   }
 
-  // Fornitori
+  // Fornitori — include anche fatture scadute ma non ancora pagate
   for (const f of ricevute) {
     if (f.status !== "Ricevuta" || !f.scadenza) continue;
     const d = new Date(f.scadenza); d.setHours(0, 0, 0, 0);
-    if (d < today || d > fineAnno) continue;
-    uscite.push({ data: d, mese: d.getMonth(), label: f.nome, importo: f.importo, tipo: "fornitore" });
+    if (d > fineAnno) continue;
+    const scaduta = d < today;
+    const dataEffettiva = scaduta ? today : d;
+    uscite.push({ data: dataEffettiva, mese: dataEffettiva.getMonth(), label: scaduta ? `${f.nome} ⚠ scaduta` : f.nome, importo: f.importo, tipo: "fornitore" });
   }
 
   uscite.sort((a, b) => a.data.getTime() - b.data.getTime());

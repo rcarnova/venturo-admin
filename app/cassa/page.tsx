@@ -42,16 +42,18 @@ async function getData() {
   const fattureAttese = fatture.filter((f) => f.status === "Inviata");
   const totaleAtteso = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
-  // Uscite certe — fatture ricevute con scadenza
+  // Uscite certe — fatture ricevute con scadenza (incluse scadute non pagate)
   for (const f of ricevute) {
     if (f.status !== "Ricevuta" || !f.scadenza) continue;
     const d = new Date(f.scadenza);
     d.setHours(0, 0, 0, 0);
+    const scaduta = d < today;
+    const dataEffettiva = scaduta ? new Date(today) : d;
     flussi.push({
       id: `fr-${f.id}`,
-      data: d,
-      dataStr: d.toLocaleDateString("it-IT"),
-      label: f.nome,
+      data: dataEffettiva,
+      dataStr: scaduta ? `oggi (sc. ${d.toLocaleDateString("it-IT")})` : d.toLocaleDateString("it-IT"),
+      label: scaduta ? `${f.nome} ⚠ scaduta` : f.nome,
       importo: -f.importo,
       tipo: "uscita_fornitore",
       certo: true,
@@ -166,7 +168,7 @@ export default async function CassaPage() {
         <SaldoCard
           label="Saldo minimo garantito"
           value={formatEuro(saldoMinimo)}
-          color={alertSaldo ? "#ff4444" : "var(--text)"}
+          color={saldoMinimo < 0 ? "#ff4444" : saldoMinimo < 2000 ? "#ffb400" : "var(--text)"}
           note="senza incassare niente"
         />
         <SaldoCard
