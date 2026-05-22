@@ -1,23 +1,11 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
 
 export const revalidate = 0;
 
 const ANNO = 2026;
-const SALDO_INIZIALE = 13_708;
-
-const MUTUO = {
-  importoRata: 136.79,
-  prossimaRata: new Date(2026, 5, 21),
-  nRateRimanenti: 27,
-};
-
-const ANTICIPO_SOCI = [
-  { data: new Date(2026, 6, 31), importo: 14_000 },  // fine luglio
-  { data: new Date(2026, 9, 31), importo: 10_000 },  // fine ottobre
-  { data: new Date(2026, 11, 31), importo: 10_000 }, // fine dicembre
-];
 
 const MESI_SHORT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -47,6 +35,12 @@ async function getData() {
 
   const semestre  = meseCorrente < 6 ? 1 : 2;
   const fattore   = semestre === 1 ? 1.0 : 0.5;
+
+  // Saldo dinamico: base + incassi successivi alla data di riconciliazione
+  const incassiDopoBase = fatture
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > SALDO_BASE.data)
+    .reduce((s, f) => s + f.incassoNetto, 0);
+  const SALDO_INIZIALE = Math.round(SALDO_BASE.importo + incassiDopoBase);
 
   // ── Entrate ────────────────────────────────────────────────────────────
   const incassatoYTD = fatture
@@ -161,6 +155,7 @@ async function getData() {
     saldoConservativo, saldoOttimistico,
     righe,
     nWon: wonDeals.length,
+    saldoAttuale: SALDO_INIZIALE,
   };
 }
 
@@ -175,13 +170,14 @@ export default async function PrevisioneAnnualePage() {
     saldoConservativo, saldoOttimistico,
     righe,
     nWon,
+    saldoAttuale,
   } = await getData();
 
   return (
     <div>
       <PageHeader
         title={`Previsione ${ANNO}`}
-        subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale €13.708`}
+        subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale ${formatEuro(saldoAttuale)}`}
       />
 
       {/* Semestre badge */}
@@ -280,7 +276,7 @@ export default async function PrevisioneAnnualePage() {
                 <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>Oggi</td>
                 <td className="col-hide-mobile"></td>
                 <td></td>
-                <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(SALDO_INIZIALE)}</span></td>
+                <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
               {righe.map((r) => (
                 <tr key={r.mese} style={r.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } : {}}>

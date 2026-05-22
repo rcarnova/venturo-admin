@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
 import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
+import { SALDO_BASE } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 async function getDashboardData() {
@@ -39,6 +40,12 @@ async function getDashboardData() {
   const daRimborsare = note.filter((n) => n.statusRimborso === "Da rimborsare");
   if (daRimborsare.length > 0)
     alerts.push({ tipo: "rimborso_da_liquidare", count: daRimborsare.length, urgente: false, label: "Rimborsi da liquidare", href: "/note-spese?status=Da+rimborsare" });
+
+  // Saldo dinamico
+  const incassiDopoBase = fatture
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > SALDO_BASE.data)
+    .reduce((s, f) => s + f.incassoNetto, 0);
+  const saldoAttuale = Math.round(SALDO_BASE.importo + incassiDopoBase);
 
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
@@ -113,7 +120,7 @@ async function getDashboardData() {
 
   return {
     alerts,
-    stats: { totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
+    stats: { saldoAttuale, totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
     scadenzeCalcolate,
     fornitoriDaPagare,
     prossimaScadenza,
@@ -253,7 +260,7 @@ export default async function DashboardPage() {
         >
           <StatCard
             label="Saldo in banca"
-            value={formatEuro(13_708)}
+            value={formatEuro(stats.saldoAttuale)}
             color="var(--text)"
           />
           <StatCard

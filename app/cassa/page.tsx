@@ -1,23 +1,9 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
 
 export const revalidate = 0;
-
-const SALDO_INIZIALE = 13_708;
-
-const MUTUO = {
-  importoRata: 136.79,
-  prossimaRata: new Date(2026, 5, 21), // 21 giugno 2026
-  nRateRimanenti: 27,
-  totaleRimanente: 3_656.84,
-};
-
-const ANTICIPO_SOCI = [
-  { data: new Date(2026, 6, 31), importo: 14_000 },  // fine luglio
-  { data: new Date(2026, 9, 31), importo: 10_000 },  // fine ottobre
-  { data: new Date(2026, 11, 31), importo: 10_000 }, // fine dicembre
-];
 
 type Flusso = {
   id: string;
@@ -43,6 +29,12 @@ async function getData() {
   today.setHours(0, 0, 0, 0);
   const in90 = new Date(today);
   in90.setDate(in90.getDate() + 90);
+
+  // Saldo dinamico: base + incassi successivi alla data di riconciliazione
+  const incassiDopoBase = fatture
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > SALDO_BASE.data)
+    .reduce((s, f) => s + f.incassoNetto, 0);
+  const SALDO_INIZIALE = Math.round(SALDO_BASE.importo + incassiDopoBase);
 
   const flussi: Flusso[] = [];
 
@@ -143,17 +135,17 @@ async function getData() {
   // Flussi nei prossimi 90 giorni — IVA sempre inclusa perché scadenza fissa
   const flussi90 = flussi.filter((f) => f.data <= in90 || f.tipo === "iva");
 
-  return { flussi90, flussiTutti: flussi, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico };
+  return { flussi90, flussiTutti: flussi, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE };
 }
 
 export default async function CassaPage() {
-  const { flussi90, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico } = await getData();
+  const { flussi90, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale } = await getData();
 
   const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
   const alertSaldo = saldoOttimistico < 0;
 
   // Proiezione a step
-  let runningBalance = SALDO_INIZIALE;
+  let runningBalance = saldoAttuale;
   const steps = flussi90.map((f) => {
     runningBalance += f.importo;
     return { ...f, saldo: runningBalance };
@@ -163,12 +155,12 @@ export default async function CassaPage() {
     <div>
       <PageHeader
         title="Proiezione Cassa"
-        subtitle="Prossimi 90 giorni + scadenze IVA · saldo attuale €13.708"
+        subtitle={`Prossimi 90 giorni + scadenze IVA · saldo attuale ${formatEuro(saldoAttuale)}`}
       />
 
       {/* Cards di sintesi */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
-        <SaldoCard label="Saldo attuale" value={formatEuro(SALDO_INIZIALE)} color="var(--text)" />
+        <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
         <SaldoCard label="Entrate attese" value={formatEuro(totaleAtteso)} color="#00c864" note={`${fattureAttese.length} fatture inviata`} />
         <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
         <SaldoCard
@@ -244,7 +236,7 @@ export default async function CassaPage() {
                 <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>Saldo iniziale</td>
                 <td></td>
                 <td></td>
-                <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(SALDO_INIZIALE)}</span></td>
+                <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
               {steps.map((s) => (
                 <tr key={s.id} style={s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } : {}}>
