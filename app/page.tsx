@@ -151,43 +151,10 @@ export default async function DashboardPage() {
 
       {/* Monday Protocol */}
       <section style={{ marginBottom: "2.5rem" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginBottom: "1rem",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.65rem",
-              color: "var(--accent)",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            ◈ Protocollo Lunedì
-          </span>
-          <div
-            style={{
-              flex: 1,
-              height: "1px",
-              background: "var(--border)",
-            }}
-          />
-          {alerts.length === 0 && (
-            <span className="badge badge-success">Tutto ok</span>
-          )}
-          {alerts.length > 0 && (
-            <span
-              className="badge badge-warning"
-              style={{ fontSize: "0.65rem" }}
-            >
-              {alerts.length} item{alerts.length > 1 ? "s" : ""}
-            </span>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+          <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+          {alerts.length === 0 && <span className="badge badge-success">Tutto ok</span>}
+          {alerts.length > 0 && <span className="badge badge-warning" style={{ fontSize: "0.65rem" }}>{alerts.length} item{alerts.length > 1 ? "s" : ""}</span>}
         </div>
 
         {alerts.length === 0 ? (
