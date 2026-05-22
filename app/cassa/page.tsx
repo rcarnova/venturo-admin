@@ -161,7 +161,7 @@ export default async function CassaPage() {
       />
 
       {/* Cards di sintesi */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
         <SaldoCard label="Entrate attese" value={formatEuro(totaleAtteso)} color="#00c864" note={`${fattureAttese.length} fatture inviata`} />
         <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
@@ -222,12 +222,13 @@ export default async function CassaPage() {
         </div>
       ) : (
         <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+          <div className="table-scroll">
           <table className="admin-table">
             <thead>
               <tr>
                 <th>Data</th>
                 <th>Descrizione</th>
-                <th>Tipo</th>
+                <th className="col-hide-mobile">Tipo</th>
                 <th>Importo</th>
                 <th>Saldo proiettato</th>
               </tr>
@@ -236,7 +237,7 @@ export default async function CassaPage() {
               <tr>
                 <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>Oggi</td>
                 <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>Saldo iniziale</td>
-                <td></td>
+                <td className="col-hide-mobile"></td>
                 <td></td>
                 <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
@@ -244,7 +245,7 @@ export default async function CassaPage() {
                 <tr key={s.id} style={s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } : {}}>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
-                  <td>
+                  <td className="col-hide-mobile">
                     <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
                       {s.tipo === "iva" ? "IVA" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
                     </span>
@@ -259,6 +260,7 @@ export default async function CassaPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

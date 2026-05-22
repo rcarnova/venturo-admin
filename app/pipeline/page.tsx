@@ -121,7 +121,7 @@ export default async function PipelinePage() {
       <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
         Pipeline
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "1.75rem" }}>
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "1.75rem" }}>
         <StatCard label="Pipeline aperta" value={formatEuro(totaleOpen)} color="var(--accent)" note={`${open.length} deal${open.length !== 1 ? "s" : ""}`} />
         <StatCard label="Pipeline pesata" value={formatEuro(Math.round(pipelinePesata))} color="var(--text)" note="ponderata per prob." />
         {conversioneRate !== null && (
@@ -138,7 +138,7 @@ export default async function PipelinePage() {
       <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
         Venduto vs Fatturato
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "0.75rem" }}>
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "0.75rem" }}>
         <StatCard label="Venduto (Won)" value={formatEuro(totaleWon)} color="var(--sage)" note={`${won.length} deal chiusi`} />
         <StatCard label="Fatturato" value={formatEuro(totaleFatturatoWon)} color="var(--text)" note="fatture emesse collegate" />
         <StatCard

@@ -186,14 +186,14 @@ export default async function PrevisioneAnnualePage() {
         <span className={`badge ${semestre === 1 ? "badge-accent" : "badge-warning"}`}>
           {semestre === 1 ? "1° Semestre" : "2° Semestre"}
         </span>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
+        <span className="semestre-row" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
           Venduto {nWon} deal Won · conteggiato al {Math.round(fattore * 100)}%
           {semestre === 2 ? " — delivery potenzialmente nel 2027" : " — consegna attesa entro fine anno"}
         </span>
       </div>
 
       {/* Entrate / Uscite stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.75rem" }}>
+      <div className="grid-2col" style={{ marginBottom: "1.75rem" }}>
         {/* Entrate */}
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
@@ -232,7 +232,7 @@ export default async function PrevisioneAnnualePage() {
       </div>
 
       {/* Saldo proiettato fine anno */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <div className="stat-card" style={{ borderColor: "var(--border-hover)" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
             Saldo conservativo

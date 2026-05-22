@@ -9,9 +9,10 @@ export function PageHeader({
 }) {
   return (
     <div
+      className="page-header"
       style={{
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "flex-start",
         justifyContent: "space-between",
         marginBottom: "2rem",
         paddingBottom: "1.5rem",
