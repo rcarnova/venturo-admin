@@ -150,7 +150,7 @@ export default async function CassaPage() {
   const { flussi90, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico } = await getData();
 
   const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
-  const alertSaldo = saldoMinimo < 0;
+  const alertSaldo = saldoOttimistico < 0;
 
   // Proiezione a step
   let runningBalance = SALDO_INIZIALE;
@@ -196,7 +196,7 @@ export default async function CassaPage() {
 
       {alertSaldo && (
         <div style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: "6px", padding: "0.75rem 1.25rem", marginBottom: "1.5rem", fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#ff4444" }}>
-          ⚠ Attenzione: il saldo va in negativo anche senza considerare le entrate attese. Verifica la liquidità.
+          ⚠ Attenzione: il saldo va in negativo anche considerando le entrate attese. Verifica la liquidità.
         </div>
       )}
 
