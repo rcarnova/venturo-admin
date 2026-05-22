@@ -13,13 +13,15 @@ const MUTUO = {
   totaleRimanente: 3_656.84,
 };
 
+const ANTICIPO_SOCI = 3_000; // €/mese, giorno 28
+
 type Flusso = {
   id: string;
   data: Date;
   dataStr: string;
   label: string;
   importo: number;
-  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo";
+  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci";
   certo: boolean;
 };
 
@@ -101,6 +103,23 @@ async function getData() {
         certo: true,
       });
     }
+  }
+
+  // Anticipo soci — €3.000 il 28 di ogni mese
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 28);
+    d.setHours(0, 0, 0, 0);
+    if (d < today) continue;
+    if (d > in90) break;
+    flussi.push({
+      id: `anticipo-${i}`,
+      data: d,
+      dataStr: d.toLocaleDateString("it-IT"),
+      label: "Anticipo soci",
+      importo: -ANTICIPO_SOCI,
+      tipo: "anticipo_soci",
+      certo: true,
+    });
   }
 
   // Rimborsi spese aperti
@@ -229,8 +248,8 @@ export default async function CassaPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td>
-                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : s.tipo === "mutuo" ? "Mutuo" : "Fornitore"}
+                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                      {s.tipo === "iva" ? "IVA" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
                     </span>
                   </td>
                   <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>

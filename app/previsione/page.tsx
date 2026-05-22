@@ -13,6 +13,8 @@ const MUTUO = {
   nRateRimanenti: 27,
 };
 
+const ANTICIPO_SOCI = 3_000; // €/mese, giorno 28
+
 const MESI_SHORT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -21,7 +23,7 @@ type Uscita = {
   mese: number;
   label: string;
   importo: number;
-  tipo: "iva" | "mutuo" | "fornitore";
+  tipo: "iva" | "mutuo" | "fornitore" | "anticipo_soci";
 };
 
 async function getData() {
@@ -98,6 +100,13 @@ async function getData() {
     uscite.push({ data: d, mese: d.getMonth(), label: "Rata mutuo", importo: MUTUO.importoRata, tipo: "mutuo" });
   }
 
+  // Anticipo soci — €3.000 il 28 di ogni mese
+  for (let m = today.getMonth(); m <= 11; m++) {
+    const d = new Date(ANNO, m, 28); d.setHours(0, 0, 0, 0);
+    if (d < today || d > fineAnno) continue;
+    uscite.push({ data: d, mese: m, label: "Anticipo soci", importo: ANTICIPO_SOCI, tipo: "anticipo_soci" });
+  }
+
   // Fornitori
   for (const f of ricevute) {
     if (f.status !== "Ricevuta" || !f.scadenza) continue;
@@ -112,10 +121,11 @@ async function getData() {
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of uscite) uscitePerMese[u.mese] += u.importo;
 
-  const totaleIVA2026      = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
-  const totaleMutuo2026    = uscite.filter(u => u.tipo === "mutuo").reduce((s, u) => s + u.importo, 0);
+  const totaleIVA2026       = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
+  const totaleMutuo2026     = uscite.filter(u => u.tipo === "mutuo").reduce((s, u) => s + u.importo, 0);
   const totaleFornitore2026 = uscite.filter(u => u.tipo === "fornitore").reduce((s, u) => s + u.importo, 0);
-  const totaleUscite       = uscite.reduce((s, u) => s + u.importo, 0);
+  const totaleAnticipo2026  = uscite.filter(u => u.tipo === "anticipo_soci").reduce((s, u) => s + u.importo, 0);
+  const totaleUscite        = uscite.reduce((s, u) => s + u.importo, 0);
 
   const saldoConservativo  = SALDO_INIZIALE - totaleUscite;
   const saldoOttimistico   = SALDO_INIZIALE + totaleEntrateAttese - totaleUscite;
@@ -142,7 +152,7 @@ async function getData() {
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
-    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleUscite,
+    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
     nWon: wonDeals.length,
@@ -156,7 +166,7 @@ export default async function PrevisioneAnnualePage() {
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
-    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleUscite,
+    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
     nWon,
@@ -208,6 +218,7 @@ export default async function PrevisioneAnnualePage() {
             Uscite pianificate
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note={`€3.000/mese × ${Math.round(totaleAnticipo2026 / 3000)} mesi`} />
             <RigaValore label="IVA (Q2 + Q3)" value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
             <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />
@@ -274,8 +285,8 @@ export default async function PrevisioneAnnualePage() {
                   <td className="col-hide-mobile">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                       {r.usciteDettaglio.map((u, i) => (
-                        <span key={i} className={`badge ${u.tipo === "iva" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
-                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "mutuo" ? "Mutuo" : u.label} {formatEuro(u.importo)}
+                        <span key={i} className={`badge ${u.tipo === "iva" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
+                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.label} {formatEuro(u.importo)}
                         </span>
                       ))}
                     </div>
@@ -332,8 +343,8 @@ export default async function PrevisioneAnnualePage() {
                       </td>
                       <td style={{ fontWeight: 500, fontSize: "0.82rem" }}>{u.label}</td>
                       <td>
-                        <span className={`badge ${u.tipo === "iva" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                          {u.tipo === "iva" ? "IVA" : u.tipo === "mutuo" ? "Mutuo" : "Fornitore"}
+                        <span className={`badge ${u.tipo === "iva" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                          {u.tipo === "iva" ? "IVA" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
                         </span>
                       </td>
                       <td><span className="num" style={{ color: "#ff4444" }}>−{formatEuro(u.importo)}</span></td>
