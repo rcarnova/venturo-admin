@@ -13,7 +13,11 @@ const MUTUO = {
   nRateRimanenti: 27,
 };
 
-const ANTICIPO_SOCI = 3_000; // €/mese, giorno 28
+const ANTICIPO_SOCI = [
+  { data: new Date(2026, 6, 31), importo: 14_000 },  // fine luglio
+  { data: new Date(2026, 9, 31), importo: 10_000 },  // fine ottobre
+  { data: new Date(2026, 11, 31), importo: 10_000 }, // fine dicembre
+];
 
 const MESI_SHORT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -100,11 +104,11 @@ async function getData() {
     uscite.push({ data: d, mese: d.getMonth(), label: "Rata mutuo", importo: MUTUO.importoRata, tipo: "mutuo" });
   }
 
-  // Anticipo soci — €3.000 il 28 di ogni mese
-  for (let m = today.getMonth(); m <= 11; m++) {
-    const d = new Date(ANNO, m, 28); d.setHours(0, 0, 0, 0);
+  // Anticipo soci — rate pianificate
+  for (const a of ANTICIPO_SOCI) {
+    const d = new Date(a.data); d.setHours(0, 0, 0, 0);
     if (d < today || d > fineAnno) continue;
-    uscite.push({ data: d, mese: m, label: "Anticipo soci", importo: ANTICIPO_SOCI, tipo: "anticipo_soci" });
+    uscite.push({ data: d, mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
   }
 
   // Fornitori
@@ -218,7 +222,7 @@ export default async function PrevisioneAnnualePage() {
             Uscite pianificate
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note={`€3.000/mese × ${Math.round(totaleAnticipo2026 / 3000)} mesi`} />
+            <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note="lug €14.000 · ott €10.000 · dic €10.000" />
             <RigaValore label="IVA (Q2 + Q3)" value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
             <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />

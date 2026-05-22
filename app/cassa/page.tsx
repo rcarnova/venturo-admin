@@ -13,7 +13,11 @@ const MUTUO = {
   totaleRimanente: 3_656.84,
 };
 
-const ANTICIPO_SOCI = 3_000; // €/mese, giorno 28
+const ANTICIPO_SOCI = [
+  { data: new Date(2026, 6, 31), importo: 14_000 },  // fine luglio
+  { data: new Date(2026, 9, 31), importo: 10_000 },  // fine ottobre
+  { data: new Date(2026, 11, 31), importo: 10_000 }, // fine dicembre
+];
 
 type Flusso = {
   id: string;
@@ -105,22 +109,20 @@ async function getData() {
     }
   }
 
-  // Anticipo soci — €3.000 il 28 di ogni mese
-  for (let i = 0; i < 4; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth() + i, 28);
-    d.setHours(0, 0, 0, 0);
-    if (d < today) continue;
-    if (d > in90) break;
+  // Anticipo soci — rate pianificate
+  ANTICIPO_SOCI.forEach((a, i) => {
+    const d = new Date(a.data); d.setHours(0, 0, 0, 0);
+    if (d < today || d > in90) return;
     flussi.push({
       id: `anticipo-${i}`,
       data: d,
       dataStr: d.toLocaleDateString("it-IT"),
       label: "Anticipo soci",
-      importo: -ANTICIPO_SOCI,
+      importo: -a.importo,
       tipo: "anticipo_soci",
       certo: true,
     });
-  }
+  });
 
   // Rimborsi spese aperti
   const totRimborsi = note.filter((n) => n.statusRimborso === "Da rimborsare").reduce((s, n) => s + n.importo, 0);
