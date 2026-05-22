@@ -68,8 +68,7 @@ async function getData() {
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
   const daFatturareWon = wonDeals.reduce((s, d) => {
     const fatturato = d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0;
-    const residuoServizio = Math.max(0, d.valore - fatturato);
-    return s + residuoServizio * fattore * 1.0608; // converti in incasso netto
+    return s + Math.max(0, d.valore - fatturato) * fattore;
   }, 0);
 
   const totaleEntrateAttese = daIncassare + daFatturareWon;
@@ -205,7 +204,7 @@ export default async function PrevisioneAnnualePage() {
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
               value={formatEuro(Math.round(daFatturareWon))}
               color={semestre === 1 ? "var(--text)" : "#ffb400"}
-              note={`netto ritenuta · su ${formatEuro(totaleVenduto)} imponibile Won`}
+              note={`imponibile · su ${formatEuro(totaleVenduto)} totale Won`}
             />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <RigaValore label="Totale entrate attese" value={formatEuro(Math.round(totaleEntrateAttese))} color="var(--text)" bold />
