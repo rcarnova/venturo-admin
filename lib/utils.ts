@@ -59,3 +59,25 @@ export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
   const diff = (target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   return diff <= daysThreshold && diff >= 0;
 }
+
+/**
+ * Calcola il saldo bancario dinamico partendo da SALDO_BASE:
+ *  + fatture emesse incassate dopo la data di riconciliazione
+ *  - fatture ricevute pagate dopo la data di riconciliazione (richiede "Data pagamento" su Notion)
+ */
+export function calcolaSaldoDinamico(
+  fatture: import("./types").Fattura[],
+  ricevute: import("./types").FatturaRicevuta[],
+  baseImporto: number,
+  baseData: string
+): number {
+  const incassi = fatture
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > baseData)
+    .reduce((s, f) => s + f.incassoNetto, 0);
+
+  const pagamenti = ricevute
+    .filter(f => f.status === "Pagata" && f.dataPagamento && f.dataPagamento > baseData)
+    .reduce((s, f) => s + f.importo, 0);
+
+  return Math.round(baseImporto + incassi - pagamenti);
+}

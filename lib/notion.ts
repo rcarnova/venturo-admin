@@ -206,6 +206,7 @@ export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
     fornitore: getRelationName(p, "Fornitore"),
     dataFattura: getDate(p, "Data fattura"),
     scadenza: getDate(p, "Scadenza"),
+    dataPagamento: getDate(p, "Data pagamento"),
     importo: getNumber(p, "Importo"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? null,

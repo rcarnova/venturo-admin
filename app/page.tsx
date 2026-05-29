@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
-import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
+import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico } from "@/lib/utils";
 import { SALDO_BASE } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
@@ -41,11 +41,7 @@ async function getDashboardData() {
   if (daRimborsare.length > 0)
     alerts.push({ tipo: "rimborso_da_liquidare", count: daRimborsare.length, urgente: false, label: "Rimborsi da liquidare", href: "/note-spese?status=Da+rimborsare" });
 
-  // Saldo dinamico
-  const incassiDopoBase = fatture
-    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > SALDO_BASE.data)
-    .reduce((s, f) => s + f.incassoNetto, 0);
-  const saldoAttuale = Math.round(SALDO_BASE.importo + incassiDopoBase);
+  const saldoAttuale = calcolaSaldoDinamico(fatture, fattureRicevute, SALDO_BASE.importo, SALDO_BASE.data);
 
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");

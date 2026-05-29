@@ -36,6 +36,7 @@ export interface FatturaRicevuta {
   fornitore: string | null;
   dataFattura: string | null;
   scadenza: string | null;
+  dataPagamento: string | null;
   importo: number;
   status: string | null;
   progetto: string | null;

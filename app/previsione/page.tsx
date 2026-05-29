@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
 
@@ -36,11 +36,7 @@ async function getData() {
   const semestre  = meseCorrente < 6 ? 1 : 2;
   const fattore   = semestre === 1 ? 1.0 : 0.5;
 
-  // Saldo dinamico: base + incassi successivi alla data di riconciliazione
-  const incassiDopoBase = fatture
-    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > SALDO_BASE.data)
-    .reduce((s, f) => s + f.incassoNetto, 0);
-  const SALDO_INIZIALE = Math.round(SALDO_BASE.importo + incassiDopoBase);
+  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
 
   // ── Entrate ────────────────────────────────────────────────────────────
   const incassatoYTD = fatture
