@@ -17,7 +17,7 @@ const NAV_ANALISI = [
   { href: "/scadenziario", label: "Scadenziario", icon: "◷" },
   { href: "/cassa", label: "Proiezione Cassa", icon: "◈" },
   { href: "/previsione", label: "Previsione Anno", icon: "◭" },
-  { href: "/simulazione", label: "Simulazione", icon: "◎" },
+  { href: "/simulazione", label: "Simulazione anticipi", icon: "◎" },
   { href: "/scadenze-iva", label: "Scadenze IVA", icon: "◑" },
   { href: "/report-iva", label: "Report IVA", icon: "◐" },
 ];
