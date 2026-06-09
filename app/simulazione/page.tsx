@@ -1,5 +1,5 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
-import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico } from "@/lib/utils";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
+import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta } from "@/lib/utils";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
 import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
@@ -11,15 +11,17 @@ const ANNO = 2026;
 export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages] = await Promise.all([
+  const [fatturePages, ricevutePages, pipelinePages, fornitoriPages] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.PIPELINE),
+    queryAll(DB.FORNITORI),
   ]);
 
-  const fatture  = fatturePages.map(mapFattura);
-  const ricevute = ricevutePages.map(mapFatturaRicevuta);
-  const deals    = pipelinePages.map(mapDeal);
+  const fatture      = fatturePages.map(mapFattura);
+  const ricevute     = ricevutePages.map(mapFatturaRicevuta);
+  const deals        = pipelinePages.map(mapDeal);
+  const fornitoriMap = new Map(fornitoriPages.map(p => { const f = mapFornitore(p); return [f.id, f]; }));
 
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
@@ -75,6 +77,20 @@ async function getData() {
     if (d > fineAnno) continue;
     const dataEffettiva = d < today ? today : d;
     usciteFisse.push({ mese: dataEffettiva.getMonth(), importo: f.importo, label: f.nome, tipo: "fornitore" });
+  }
+
+  // Ritenute d'acconto
+  for (const f of ricevute) {
+    const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
+    if (!forn?.ritenuta || !forn.percentualeRitenuta) continue;
+    const importoRitenuta = Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100;
+    const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
+      : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
+      : null;
+    if (!dataBase) continue;
+    const scad = scadenzaRitenuta(dataBase);
+    if (scad < today || scad > fineAnno) continue;
+    usciteFisse.push({ mese: scad.getMonth(), importo: importoRitenuta, label: `Ritenuta ${f.nome} (${forn.percentualeRitenuta}%)`, tipo: "ritenuta" });
   }
 
   // Valore di default anticipo soci dal config (solo date future nell'anno)

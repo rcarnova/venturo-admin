@@ -65,6 +65,15 @@ export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
  *  + fatture emesse incassate dopo la data di riconciliazione
  *  - fatture ricevute pagate dopo la data di riconciliazione (richiede "Data pagamento" su Notion)
  */
+/** Restituisce il 15 del mese successivo alla data di pagamento fornitore */
+export function scadenzaRitenuta(dataRiferimento: Date): Date {
+  const d = new Date(dataRiferimento);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(15);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export function calcolaSaldoDinamico(
   fatture: import("./types").Fattura[],
   ricevute: import("./types").FatturaRicevuta[],

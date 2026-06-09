@@ -1,5 +1,5 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico } from "@/lib/utils";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapFornitore } from "@/lib/notion";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
 
@@ -11,19 +11,21 @@ type Flusso = {
   dataStr: string;
   label: string;
   importo: number;
-  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci";
+  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci" | "ritenuta";
   certo: boolean;
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, notePages] = await Promise.all([
+  const [fatturePages, ricevutePages, notePages, fornitoriPages] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.NOTE_SPESE),
+    queryAll(DB.FORNITORI),
   ]);
-  const fatture = fatturePages.map(mapFattura);
-  const ricevute = ricevutePages.map(mapFatturaRicevuta);
-  const note = notePages.map(mapNotaSpese);
+  const fatture   = fatturePages.map(mapFattura);
+  const ricevute  = ricevutePages.map(mapFatturaRicevuta);
+  const note      = notePages.map(mapNotaSpese);
+  const fornitoriMap = new Map(fornitoriPages.map(p => { const f = mapFornitore(p); return [f.id, f]; }));
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -52,6 +54,29 @@ async function getData() {
       label: scaduta ? `${f.nome} ⚠ scaduta` : f.nome,
       importo: -f.importo,
       tipo: "uscita_fornitore",
+      certo: true,
+    });
+  }
+
+  // Ritenuta d'acconto — da versare entro il 15 del mese successivo al pagamento
+  for (const f of ricevute) {
+    const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
+    if (!forn?.ritenuta || !forn.percentualeRitenuta) continue;
+    const importoRitenuta = Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100;
+    // Data di riferimento: pagamento effettivo o scadenza (overdue → oggi)
+    const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
+      : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
+      : null;
+    if (!dataBase) continue;
+    const scad = scadenzaRitenuta(dataBase);
+    if (scad < today) continue; // già versata
+    flussi.push({
+      id: `ritenuta-${f.id}`,
+      data: scad,
+      dataStr: scad.toLocaleDateString("it-IT"),
+      label: `Ritenuta ${f.nome} (${forn.percentualeRitenuta}%)`,
+      importo: -importoRitenuta,
+      tipo: "ritenuta",
       certo: true,
     });
   }
@@ -242,8 +267,8 @@ export default async function CassaPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
-                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
+                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
                     </span>
                   </td>
                   <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>

@@ -201,8 +201,8 @@ export default function SimulazioneClient({
                   <td className="col-hide-mobile">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                       {r.fisse.map((u, i) => (
-                        <span key={i} className={`badge ${u.tipo === "iva" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
-                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "mutuo" ? "Mutuo" : u.label} {formatEuro(u.importo)}
+                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
+                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.label} {formatEuro(u.importo)}
                         </span>
                       ))}
                       {r.antMese.map((a, i) => (
