@@ -220,7 +220,8 @@ export default async function CassaPage() {
       {/* Cards di sintesi */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
-        <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note={`liquidità totale ${formatEuro(liquiditaTotale)}`} />
+        <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" />
+        <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" />
         <SaldoCard label="Entrate attese" value={formatEuro(totaleAtteso)} color="#00c864" note={`${fattureAttese.length} fatture inviata`} />
         <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
         <SaldoCard

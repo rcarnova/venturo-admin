@@ -156,7 +156,8 @@ export default function SimulazioneClient({
       {/* ── Summary cards ── */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
-        <SaldoCard label="Fido bancario" value={formatEuro(fidoBancario)} color="var(--muted)" note={`liquidità totale ${formatEuro(saldoAttuale + fidoBancario)}`} />
+        <SaldoCard label="Fido bancario" value={formatEuro(fidoBancario)} color="var(--muted)" note="linea di credito disponibile" />
+        <SaldoCard label="Liquidità totale" value={formatEuro(saldoAttuale + fidoBancario)} color="var(--accent)" note="saldo + fido" />
         <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rata${anticipi.length !== 1 ? "e" : "a"}`} />
         <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori + abbonamenti" />
         <SaldoCard

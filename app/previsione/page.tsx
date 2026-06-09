@@ -284,7 +284,18 @@ export default async function PrevisioneAnnualePage() {
             {formatEuro(FIDO_BANCARIO)}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            liquidità totale disponibile {formatEuro(saldoAttuale + FIDO_BANCARIO)}
+            linea di credito disponibile
+          </div>
+        </div>
+        <div className="stat-card" style={{ borderColor: "var(--accent-border)" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+            Liquidità totale
+          </div>
+          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--accent)" }}>
+            {formatEuro(saldoAttuale + FIDO_BANCARIO)}
+          </div>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
+            saldo attuale + fido
           </div>
         </div>
         <div className="stat-card" style={{ borderColor: "var(--border-hover)" }}>
