@@ -116,15 +116,18 @@ async function getData() {
   // Ritenute d'acconto — 15 del mese successivo al pagamento fornitore
   for (const f of ricevute) {
     const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
-    if (!forn?.ritenuta || !forn.percentualeRitenuta) continue;
-    const importoRitenuta = Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100;
+    const importoRitenuta = f.importoRitenuta > 0
+      ? f.importoRitenuta
+      : (forn?.ritenuta && forn.percentualeRitenuta ? Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100 : 0);
+    if (!importoRitenuta) continue;
     const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
       : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
       : null;
     if (!dataBase) continue;
     const scad = scadenzaRitenuta(dataBase);
     if (scad < today || scad > fineAnno) continue;
-    uscite.push({ data: scad, mese: scad.getMonth(), label: `Ritenuta ${f.nome} (${forn.percentualeRitenuta}%)`, importo: importoRitenuta, tipo: "ritenuta" });
+    const pct = forn?.percentualeRitenuta ? ` (${forn.percentualeRitenuta}%)` : "";
+    uscite.push({ data: scad, mese: scad.getMonth(), label: `Ritenuta ${f.nome}${pct}`, importo: importoRitenuta, tipo: "ritenuta" });
   }
 
   uscite.sort((a, b) => a.data.getTime() - b.data.getTime());

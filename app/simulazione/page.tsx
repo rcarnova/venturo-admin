@@ -82,15 +82,18 @@ async function getData() {
   // Ritenute d'acconto
   for (const f of ricevute) {
     const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
-    if (!forn?.ritenuta || !forn.percentualeRitenuta) continue;
-    const importoRitenuta = Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100;
+    const importoRitenuta = f.importoRitenuta > 0
+      ? f.importoRitenuta
+      : (forn?.ritenuta && forn.percentualeRitenuta ? Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100 : 0);
+    if (!importoRitenuta) continue;
     const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
       : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
       : null;
     if (!dataBase) continue;
     const scad = scadenzaRitenuta(dataBase);
     if (scad < today || scad > fineAnno) continue;
-    usciteFisse.push({ mese: scad.getMonth(), importo: importoRitenuta, label: `Ritenuta ${f.nome} (${forn.percentualeRitenuta}%)`, tipo: "ritenuta" });
+    const pct = forn?.percentualeRitenuta ? ` (${forn.percentualeRitenuta}%)` : "";
+    usciteFisse.push({ mese: scad.getMonth(), importo: importoRitenuta, label: `Ritenuta ${f.nome}${pct}`, tipo: "ritenuta" });
   }
 
   // Valore di default anticipo soci dal config (solo date future nell'anno)

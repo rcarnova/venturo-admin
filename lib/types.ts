@@ -37,7 +37,8 @@ export interface FatturaRicevuta {
   dataFattura: string | null;
   scadenza: string | null;
   dataPagamento: string | null;
-  importo: number;
+  importo: number;          // netto da pagare al fornitore (bonifico)
+  importoRitenuta: number;  // ritenuta d'acconto da versare all'Erario (0 se non applicabile)
   status: string | null;
   progetto: string | null;
   fileFattura: string | null;
