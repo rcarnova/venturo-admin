@@ -1,7 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapFornitore } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI } from "@/lib/config";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 
 export const revalidate = 0;
 
@@ -200,7 +200,8 @@ export default async function CassaPage() {
   const { flussi90, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale } = await getData();
 
   const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
-  const alertSaldo = saldoOttimistico < 0;
+  const liquiditaTotale = saldoAttuale + FIDO_BANCARIO;
+  const alertSaldo = (saldoOttimistico + FIDO_BANCARIO) < 0;
 
   // Proiezione a step
   let runningBalance = saldoAttuale;
@@ -219,13 +220,14 @@ export default async function CassaPage() {
       {/* Cards di sintesi */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
+        <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note={`liquidità totale ${formatEuro(liquiditaTotale)}`} />
         <SaldoCard label="Entrate attese" value={formatEuro(totaleAtteso)} color="#00c864" note={`${fattureAttese.length} fatture inviata`} />
         <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
         <SaldoCard
           label="Saldo minimo garantito"
           value={formatEuro(saldoMinimo)}
-          color={saldoMinimo < 0 ? "#ff4444" : saldoMinimo < 2000 ? "#ffb400" : "var(--text)"}
-          note="senza incassare niente"
+          color={(saldoMinimo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoMinimo + FIDO_BANCARIO) < 2000 ? "#ffb400" : "var(--text)"}
+          note={`con fido: ${formatEuro(saldoMinimo + FIDO_BANCARIO)}`}
         />
         <SaldoCard
           label="Saldo ottimistico"

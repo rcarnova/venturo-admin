@@ -18,6 +18,7 @@ type Props = {
   meseCorrente: number;
   fattore: number;
   semestre: number;
+  fidoBancario: number;
 };
 
 let _nextId = 0;
@@ -25,7 +26,7 @@ function newId() { return `a-${_nextId++}`; }
 
 export default function SimulazioneClient({
   saldoAttuale, daIncassare, daFatturareWon,
-  usciteFisse, anticipoDefault, meseCorrente, fattore,
+  usciteFisse, anticipoDefault, meseCorrente, fattore, fidoBancario,
 }: Props) {
   const [anticipi, setAnticipi] = useState<Anticipo[]>(
     anticipoDefault.map(a => ({ ...a, id: newId() }))
@@ -155,18 +156,19 @@ export default function SimulazioneClient({
       {/* ── Summary cards ── */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
+        <SaldoCard label="Fido bancario" value={formatEuro(fidoBancario)} color="var(--muted)" note={`liquidità totale ${formatEuro(saldoAttuale + fidoBancario)}`} />
         <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rata${anticipi.length !== 1 ? "e" : "a"}`} />
         <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori + abbonamenti" />
         <SaldoCard
           label="Saldo conservativo dic"
           value={formatEuro(Math.round(saldoConservativo))}
-          color={saldoConservativo < 0 ? "#ff4444" : saldoConservativo < 2000 ? "#ffb400" : "var(--text)"}
-          note="senza nuovi incassi"
+          color={(saldoConservativo + fidoBancario) < 0 ? "#ff4444" : (saldoConservativo + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
+          note={`con fido: ${formatEuro(Math.round(saldoConservativo) + fidoBancario)}`}
         />
         <SaldoCard
           label="Saldo ottimistico dic"
           value={formatEuro(Math.round(saldoOttimistico))}
-          color={saldoOttimistico < 0 ? "#ff4444" : "var(--sage)"}
+          color={(saldoOttimistico + fidoBancario) < 0 ? "#ff4444" : "var(--sage)"}
           note={`+ da incassare + Won ×${Math.round(fattore * 100)}%`}
         />
       </div>

@@ -7,6 +7,9 @@ export const SALDO_BASE = {
   data: "2026-05-21", // data ultima riconciliazione manuale (ISO)
 };
 
+// ─── Fido bancario ───────────────────────────────────────────────────────────
+export const FIDO_BANCARIO = 5_000;
+
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,

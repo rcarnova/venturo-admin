@@ -1,7 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI } from "@/lib/config";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 
 export const revalidate = 0;
 
@@ -276,22 +276,33 @@ export default async function PrevisioneAnnualePage() {
 
       {/* Saldo proiettato fine anno */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
+        <div className="stat-card">
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+            Fido bancario
+          </div>
+          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--muted)" }}>
+            {formatEuro(FIDO_BANCARIO)}
+          </div>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
+            liquidità totale disponibile {formatEuro(saldoAttuale + FIDO_BANCARIO)}
+          </div>
+        </div>
         <div className="stat-card" style={{ borderColor: "var(--border-hover)" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
             Saldo conservativo
           </div>
-          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: saldoConservativo < 0 ? "#ff4444" : saldoConservativo < 3000 ? "#ffb400" : "var(--text)" }}>
+          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: (saldoConservativo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoConservativo + FIDO_BANCARIO) < 3000 ? "#ffb400" : "var(--text)" }}>
             {formatEuro(Math.round(saldoConservativo))}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            saldo attuale − uscite (nessuna entrata)
+            con fido: {formatEuro(Math.round(saldoConservativo) + FIDO_BANCARIO)}
           </div>
         </div>
         <div className="stat-card" style={{ borderColor: "var(--accent-border)" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
             Saldo ottimistico
           </div>
-          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: saldoOttimistico < 0 ? "#ff4444" : "var(--sage)" }}>
+          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: (saldoOttimistico + FIDO_BANCARIO) < 0 ? "#ff4444" : "var(--sage)" }}>
             {formatEuro(Math.round(saldoOttimistico))}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
