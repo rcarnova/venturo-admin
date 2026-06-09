@@ -38,6 +38,7 @@ export interface FatturaRicevuta {
   scadenza: string | null;
   dataPagamento: string | null;
   importo: number;          // netto da pagare al fornitore (bonifico)
+  importoIVA: number;       // IVA in acquisto detraibile (credito IVA vs Erario)
   importoRitenuta: number;  // ritenuta d'acconto da versare all'Erario (0 se non applicabile)
   status: string | null;
   progetto: string | null;

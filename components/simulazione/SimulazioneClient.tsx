@@ -156,7 +156,7 @@ export default function SimulazioneClient({
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
         <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rata${anticipi.length !== 1 ? "e" : "a"}`} />
-        <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori" />
+        <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori + abbonamenti" />
         <SaldoCard
           label="Saldo conservativo dic"
           value={formatEuro(Math.round(saldoConservativo))}
@@ -201,7 +201,7 @@ export default function SimulazioneClient({
                   <td className="col-hide-mobile">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                       {r.fisse.map((u, i) => (
-                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
+                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
                           {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.label} {formatEuro(u.importo)}
                         </span>
                       ))}

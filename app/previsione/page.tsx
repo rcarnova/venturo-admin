@@ -1,7 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI } from "@/lib/config";
 
 export const revalidate = 0;
 
@@ -15,7 +15,7 @@ type Uscita = {
   mese: number;
   label: string;
   importo: number;
-  tipo: "iva" | "mutuo" | "fornitore" | "anticipo_soci" | "ritenuta";
+  tipo: "iva" | "mutuo" | "fornitore" | "anticipo_soci" | "ritenuta" | "abbonamento";
 };
 
 async function getData() {
@@ -74,19 +74,23 @@ async function getData() {
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
 
-  // IVA
+  // IVA — debito fatture emesse meno credito acquisti (ricevute + abbonamenti)
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  for (const [trimestre, totaleIVA] of Array.from(ivaPerTrimestre)) {
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
+  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const scadenzaDate = new Date(y, m - 1, d); scadenzaDate.setHours(0, 0, 0, 0);
     if (scadenzaDate < today || scadenzaDate > fineAnno) continue;
-    uscite.push({ data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`, importo: totaleIVA, tipo: "iva" });
+    const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
+    const ivaNetta = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+    const noteCredito = creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
+    uscite.push({ data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`, importo: ivaNetta, tipo: "iva" });
   }
 
   // Mutuo
@@ -113,6 +117,22 @@ async function getData() {
     uscite.push({ data: dataEffettiva, mese: dataEffettiva.getMonth(), label: scaduta ? `${f.nome} ⚠ scaduta` : f.nome, importo: f.importo, tipo: "fornitore" });
   }
 
+  // Costi ricorrenti (mensili e non)
+  for (const costo of COSTI_RICORRENTI) {
+    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
+    const freq = costo.frequenzaMesi ?? 1;
+    for (let m = 0; m <= 11; m++) {
+      if (freq > 1 && costo.primaData) {
+        const diff = (ANNO - costo.primaData.anno) * 12 + (m - costo.primaData.mese);
+        if (diff < 0 || diff % freq !== 0) continue;
+      }
+      const lastDay = new Date(ANNO, m + 1, 0).getDate();
+      const d = new Date(ANNO, m, Math.min(costo.giornoAddebito, lastDay)); d.setHours(0, 0, 0, 0);
+      if (d < today || d > fineAnno) continue;
+      uscite.push({ data: d, mese: m, label: costo.label, importo: importoLordo, tipo: "abbonamento" });
+    }
+  }
+
   // Ritenute d'acconto — 15 del mese successivo al pagamento fornitore
   for (const f of ricevute) {
     const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
@@ -136,12 +156,13 @@ async function getData() {
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of uscite) uscitePerMese[u.mese] += u.importo;
 
-  const totaleIVA2026       = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
-  const totaleMutuo2026     = uscite.filter(u => u.tipo === "mutuo").reduce((s, u) => s + u.importo, 0);
-  const totaleFornitore2026 = uscite.filter(u => u.tipo === "fornitore").reduce((s, u) => s + u.importo, 0);
-  const totaleAnticipo2026  = uscite.filter(u => u.tipo === "anticipo_soci").reduce((s, u) => s + u.importo, 0);
-  const totaleRitenuta2026  = uscite.filter(u => u.tipo === "ritenuta").reduce((s, u) => s + u.importo, 0);
-  const totaleUscite        = uscite.reduce((s, u) => s + u.importo, 0);
+  const totaleIVA2026         = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
+  const totaleMutuo2026       = uscite.filter(u => u.tipo === "mutuo").reduce((s, u) => s + u.importo, 0);
+  const totaleFornitore2026   = uscite.filter(u => u.tipo === "fornitore").reduce((s, u) => s + u.importo, 0);
+  const totaleAnticipo2026    = uscite.filter(u => u.tipo === "anticipo_soci").reduce((s, u) => s + u.importo, 0);
+  const totaleRitenuta2026    = uscite.filter(u => u.tipo === "ritenuta").reduce((s, u) => s + u.importo, 0);
+  const totaleAbbonamenti2026 = uscite.filter(u => u.tipo === "abbonamento").reduce((s, u) => s + u.importo, 0);
+  const totaleUscite          = uscite.reduce((s, u) => s + u.importo, 0);
 
   const saldoConservativo  = SALDO_INIZIALE - totaleUscite;
   const saldoOttimistico   = SALDO_INIZIALE + totaleEntrateAttese - totaleUscite;
@@ -168,7 +189,7 @@ async function getData() {
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
-    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleUscite,
+    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
     nWon: wonDeals.length,
@@ -183,7 +204,7 @@ export default async function PrevisioneAnnualePage() {
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
-    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleUscite,
+    totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
     nWon,
@@ -240,6 +261,9 @@ export default async function PrevisioneAnnualePage() {
             <RigaValore label="IVA (Q2 + Q3)" value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
             <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />
+            {totaleAbbonamenti2026 > 0 && (
+              <RigaValore label="Abbonamenti ricorrenti" value={formatEuro(Math.round(totaleAbbonamenti2026 * 100) / 100)} color="var(--muted)" note="Google Workspace + altri mensili" />
+            )}
             {totaleRitenuta2026 > 0 && (
               <RigaValore label="Ritenute d'acconto" value={formatEuro(Math.round(totaleRitenuta2026 * 100) / 100)} color="#e05555" note="da versare entro il 15 del mese succ." />
             )}
@@ -306,8 +330,8 @@ export default async function PrevisioneAnnualePage() {
                   <td className="col-hide-mobile">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                       {r.usciteDettaglio.map((u, i) => (
-                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
-                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.label} {formatEuro(u.importo)}
+                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
+                          {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.tipo === "abbonamento" ? u.label : u.label} {formatEuro(u.importo)}
                         </span>
                       ))}
                     </div>
@@ -364,8 +388,8 @@ export default async function PrevisioneAnnualePage() {
                       </td>
                       <td style={{ fontWeight: 500, fontSize: "0.82rem" }}>{u.label}</td>
                       <td>
-                        <span className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                          {u.tipo === "iva" ? "IVA" : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
+                        <span className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                          {u.tipo === "iva" ? "IVA" : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.tipo === "abbonamento" ? "Abbonamento" : "Fornitore"}
                         </span>
                       </td>
                       <td><span className="num" style={{ color: "#ff4444" }}>−{formatEuro(u.importo)}</span></td>

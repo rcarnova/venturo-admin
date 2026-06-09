@@ -1,6 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
-import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta } from "@/lib/utils";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
+import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
 import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
 
@@ -48,19 +48,23 @@ async function getData() {
   // Uscite fisse (IVA, mutuo, fornitori) senza anticipi soci
   const usciteFisse: UscitaFissa[] = [];
 
-  // IVA
+  // IVA — debito meno credito acquisti
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  for (const [trimestre, totaleIVA] of Array.from(ivaPerTrimestre)) {
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
+  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const sc = new Date(y, m - 1, d); sc.setHours(0, 0, 0, 0);
     if (sc < today || sc > fineAnno) continue;
-    usciteFisse.push({ mese: sc.getMonth(), importo: totaleIVA, label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`, tipo: "iva" });
+    const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
+    const ivaNetta = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+    const noteCredito = creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
+    usciteFisse.push({ mese: sc.getMonth(), importo: ivaNetta, label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`, tipo: "iva" });
   }
 
   // Mutuo
@@ -77,6 +81,22 @@ async function getData() {
     if (d > fineAnno) continue;
     const dataEffettiva = d < today ? today : d;
     usciteFisse.push({ mese: dataEffettiva.getMonth(), importo: f.importo, label: f.nome, tipo: "fornitore" });
+  }
+
+  // Costi ricorrenti (mensili e non)
+  for (const costo of COSTI_RICORRENTI) {
+    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
+    const freq = costo.frequenzaMesi ?? 1;
+    for (let m = 0; m <= 11; m++) {
+      if (freq > 1 && costo.primaData) {
+        const diff = (ANNO - costo.primaData.anno) * 12 + (m - costo.primaData.mese);
+        if (diff < 0 || diff % freq !== 0) continue;
+      }
+      const lastDay = new Date(ANNO, m + 1, 0).getDate();
+      const d = new Date(ANNO, m, Math.min(costo.giornoAddebito, lastDay)); d.setHours(0, 0, 0, 0);
+      if (d < today || d > fineAnno) continue;
+      usciteFisse.push({ mese: m, importo: importoLordo, label: costo.label, tipo: "abbonamento" });
+    }
   }
 
   // Ritenute d'acconto

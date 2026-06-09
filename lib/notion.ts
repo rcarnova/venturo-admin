@@ -208,6 +208,7 @@ export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
     scadenza: getDate(p, "Scadenza"),
     dataPagamento: getDate(p, "Data pagamento"),
     importo: getNumber(p, "Importo"),          // netto da pagare al fornitore
+    importoIVA: getNumber(p, "IVA"),           // IVA detraibile (es. €148.72 per Gattuso)
     importoRitenuta: getNumber(p, "Ritenuta"), // importo ritenuta dalla fattura (es. €130)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? null,

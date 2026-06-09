@@ -1,7 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapFornitore } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI } from "@/lib/config";
+import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI } from "@/lib/config";
 
 export const revalidate = 0;
 
@@ -11,7 +11,7 @@ type Flusso = {
   dataStr: string;
   label: string;
   importo: number;
-  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci" | "ritenuta";
+  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci" | "ritenuta" | "abbonamento";
   certo: boolean;
 };
 
@@ -84,25 +84,30 @@ async function getData() {
     });
   }
 
-  // Uscite IVA — calcolate dalle fatture pagate
+  // Uscite IVA — debito da fatture emesse meno credito da acquisti
+  const ANNO_CORRENTE = today.getFullYear();
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  for (const [trimestre, totaleIVA] of Array.from(ivaPerTrimestre)) {
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO_CORRENTE);
+  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const scadenzaDate = new Date(y, m - 1, d);
     scadenzaDate.setHours(0, 0, 0, 0);
     if (scadenzaDate < today) continue; // già versata
+    const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
+    const ivaNetta = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+    const noteCredito = creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
     flussi.push({
       id: `iva-${trimestre}`,
       data: scadenzaDate,
       dataStr: scadenzaStr,
-      label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`,
-      importo: -totaleIVA,
+      label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`,
+      importo: -ivaNetta,
       tipo: "iva",
       certo: true,
     });
@@ -141,6 +146,33 @@ async function getData() {
       certo: true,
     });
   });
+
+  // Costi ricorrenti (mensili e non)
+  for (const costo of COSTI_RICORRENTI) {
+    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
+    const freq = costo.frequenzaMesi ?? 1;
+    for (let mo = 0; mo <= 4; mo++) {
+      const targetAnno = today.getFullYear() + Math.floor((today.getMonth() + mo) / 12);
+      const targetMese = (today.getMonth() + mo) % 12;
+      if (freq > 1 && costo.primaData) {
+        const diff = (targetAnno - costo.primaData.anno) * 12 + (targetMese - costo.primaData.mese);
+        if (diff < 0 || diff % freq !== 0) continue;
+      }
+      const lastDay = new Date(targetAnno, targetMese + 1, 0).getDate();
+      const d = new Date(targetAnno, targetMese, Math.min(costo.giornoAddebito, lastDay));
+      d.setHours(0, 0, 0, 0);
+      if (d < today || d > in90) continue;
+      flussi.push({
+        id: `ricorrente-${costo.label}-${mo}`,
+        data: d,
+        dataStr: d.toLocaleDateString("it-IT"),
+        label: costo.label,
+        importo: -importoLordo,
+        tipo: "abbonamento",
+        certo: true,
+      });
+    }
+  }
 
   // Rimborsi spese aperti
   const totRimborsi = note.filter((n) => n.statusRimborso === "Da rimborsare").reduce((s, n) => s + n.importo, 0);
@@ -270,8 +302,8 @@ export default async function CassaPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
-                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : "Fornitore"}
+                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : s.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Abbonamento" : "Fornitore"}
                     </span>
                   </td>
                   <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>

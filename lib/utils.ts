@@ -74,6 +74,51 @@ export function scadenzaRitenuta(dataRiferimento: Date): Date {
   return d;
 }
 
+/**
+ * Calcola l'IVA credito su acquisti per trimestre.
+ * Fonti: ricevute con campo IVA valorizzato + costi ricorrenti mensili (config).
+ * Per le ricevute usa dataPagamento se presente, altrimenti scadenza.
+ * Per i ricorrenti considera tutti i mesi dell'anno (il credito si matura nell'intero trimestre).
+ */
+export function calcolaIVACreditoPerTrimestre(
+  ricevute: import("./types").FatturaRicevuta[],
+  costiRicorrenti: Array<{
+    importoNetto: number; aliquotaIVA: number; giornoAddebito: number;
+    frequenzaMesi?: number; primaData?: { anno: number; mese: number };
+  }>,
+  anno: number
+): Map<string, number> {
+  const credito = new Map<string, number>();
+
+  for (const f of ricevute) {
+    if (f.importoIVA <= 0) continue;
+    const dataRef = f.dataPagamento ?? f.scadenza;
+    if (!dataRef) continue;
+    const trim = calcolaTrimestre(dataRef);
+    if (!trim) continue;
+    credito.set(trim, (credito.get(trim) ?? 0) + f.importoIVA);
+  }
+
+  for (const costo of costiRicorrenti) {
+    if (costo.aliquotaIVA <= 0) continue;
+    const ivaRata = Math.round(costo.importoNetto * costo.aliquotaIVA * 100) / 100;
+    const freq = costo.frequenzaMesi ?? 1;
+    for (let m = 0; m <= 11; m++) {
+      if (freq > 1 && costo.primaData) {
+        const diff = (anno - costo.primaData.anno) * 12 + (m - costo.primaData.mese);
+        if (diff < 0 || diff % freq !== 0) continue;
+      }
+      const lastDay = new Date(anno, m + 1, 0).getDate();
+      const d = new Date(anno, m, Math.min(costo.giornoAddebito, lastDay));
+      const trim = calcolaTrimestre(d.toISOString().split("T")[0]);
+      if (!trim) continue;
+      credito.set(trim, (credito.get(trim) ?? 0) + ivaRata);
+    }
+  }
+
+  return credito;
+}
+
 export function calcolaSaldoDinamico(
   fatture: import("./types").Fattura[],
   ricevute: import("./types").FatturaRicevuta[],
