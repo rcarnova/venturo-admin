@@ -1,4 +1,4 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapFornitore } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
@@ -16,16 +16,14 @@ type Flusso = {
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, notePages, fornitoriPages] = await Promise.all([
+  const [fatturePages, ricevutePages, notePages] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.NOTE_SPESE),
-    queryAll(DB.FORNITORI),
   ]);
-  const fatture   = fatturePages.map(mapFattura);
-  const ricevute  = ricevutePages.map(mapFatturaRicevuta);
-  const note      = notePages.map(mapNotaSpese);
-  const fornitoriMap = new Map(fornitoriPages.map(p => { const f = mapFornitore(p); return [f.id, f]; }));
+  const fatture  = fatturePages.map(mapFattura);
+  const ricevute = ricevutePages.map(mapFatturaRicevuta);
+  const note     = notePages.map(mapNotaSpese);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -40,9 +38,9 @@ async function getData() {
   const fattureAttese = fatture.filter((f) => f.status === "Inviata");
   const totaleAtteso = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
-  // Uscite certe — fatture ricevute con scadenza (incluse scadute non pagate)
+  // Uscite certe — fatture ricevute da pagare (Ricevuta) o scadute (In ritardo)
   for (const f of ricevute) {
-    if (f.status !== "Ricevuta" || !f.scadenza) continue;
+    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
     const d = new Date(f.scadenza);
     d.setHours(0, 0, 0, 0);
     const scaduta = d < today;
@@ -58,27 +56,21 @@ async function getData() {
     });
   }
 
-  // Ritenuta d'acconto — da versare entro il 15 del mese successivo al pagamento
+  // Ritenuta d'acconto — da versare entro il 15 del mese successivo al pagamento (importoRitenuta da SDI/Notion)
   for (const f of ricevute) {
-    const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
-    // Usa importoRitenuta dalla fattura se presente, altrimenti calcola da % fornitore
-    const importoRitenuta = f.importoRitenuta > 0
-      ? f.importoRitenuta
-      : (forn?.ritenuta && forn.percentualeRitenuta ? Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100 : 0);
-    if (!importoRitenuta) continue;
+    if (!f.importoRitenuta) continue;
     const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
       : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
       : null;
     if (!dataBase) continue;
     const scad = scadenzaRitenuta(dataBase);
     if (scad < today) continue;
-    const pct = forn?.percentualeRitenuta ? ` (${forn.percentualeRitenuta}%)` : "";
     flussi.push({
       id: `ritenuta-${f.id}`,
       data: scad,
       dataStr: scad.toLocaleDateString("it-IT"),
-      label: `Ritenuta ${f.nome}${pct}`,
-      importo: -importoRitenuta,
+      label: `Ritenuta ${f.nome}`,
+      importo: -f.importoRitenuta,
       tipo: "ritenuta",
       certo: true,
     });

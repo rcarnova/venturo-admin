@@ -135,7 +135,7 @@ export default async function ReportIVAPage() {
                     {formatEuro(t.ivaNetta)}
                   </span>
                 </div>
-                <span className={`badge ${t.versata ? "badge-success" : t.urgent ? "badge-error" : "badge-warning"}`}>
+                <span className={`badge ${t.versata ? "badge-success" : t.urgent ? "badge-error" : "badge-warning"}`} title={t.versata ? "Inferito dalla data — confermare con F24" : undefined}>
                   {t.versata ? "Versata" : "Da versare"}
                 </span>
               </div>

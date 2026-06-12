@@ -1,13 +1,12 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 
 export const revalidate = 0;
 
-const ANNO = 2026;
+const ANNO = new Date().getFullYear();
 
-const MESI_SHORT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 type Uscita = {
@@ -19,17 +18,15 @@ type Uscita = {
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages, fornitoriPages] = await Promise.all([
+  const [fatturePages, ricevutePages, pipelinePages] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.PIPELINE),
-    queryAll(DB.FORNITORI),
   ]);
 
-  const fatture      = fatturePages.map(mapFattura);
-  const ricevute     = ricevutePages.map(mapFatturaRicevuta);
-  const deals        = pipelinePages.map(mapDeal);
-  const fornitoriMap = new Map(fornitoriPages.map(p => { const f = mapFornitore(p); return [f.id, f]; }));
+  const fatture  = fatturePages.map(mapFattura);
+  const ricevute = ricevutePages.map(mapFatturaRicevuta);
+  const deals    = pipelinePages.map(mapDeal);
 
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
@@ -43,13 +40,13 @@ async function getData() {
   // ── Entrate ────────────────────────────────────────────────────────────
   const incassatoYTD = fatture
     .filter(f => f.status === "Pagata" && f.dataIncasso?.startsWith(`${ANNO}`))
-    .reduce((s, f) => s + f.importo, 0);
+    .reduce((s, f) => s + f.incassoNetto, 0);
 
   const incassatoPerMese = Array(12).fill(0) as number[];
   for (const f of fatture) {
     if (f.status === "Pagata" && f.dataIncasso?.startsWith(`${ANNO}`)) {
       const m = parseInt(f.dataIncasso.slice(5, 7)) - 1;
-      incassatoPerMese[m] += f.importo;
+      incassatoPerMese[m] += f.incassoNetto;
     }
   }
 
@@ -107,9 +104,9 @@ async function getData() {
     uscite.push({ data: d, mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
   }
 
-  // Fornitori — include anche fatture scadute ma non ancora pagate
+  // Fornitori — include fatture da pagare (Ricevuta) e scadute (In ritardo)
   for (const f of ricevute) {
-    if (f.status !== "Ricevuta" || !f.scadenza) continue;
+    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
     const d = new Date(f.scadenza); d.setHours(0, 0, 0, 0);
     if (d > fineAnno) continue;
     const scaduta = d < today;
@@ -133,21 +130,16 @@ async function getData() {
     }
   }
 
-  // Ritenute d'acconto — 15 del mese successivo al pagamento fornitore
+  // Ritenute d'acconto — 15 del mese successivo al pagamento fornitore (usa importoRitenuta da SDI/Notion)
   for (const f of ricevute) {
-    const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
-    const importoRitenuta = f.importoRitenuta > 0
-      ? f.importoRitenuta
-      : (forn?.ritenuta && forn.percentualeRitenuta ? Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100 : 0);
-    if (!importoRitenuta) continue;
+    if (!f.importoRitenuta) continue;
     const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
       : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
       : null;
     if (!dataBase) continue;
     const scad = scadenzaRitenuta(dataBase);
     if (scad < today || scad > fineAnno) continue;
-    const pct = forn?.percentualeRitenuta ? ` (${forn.percentualeRitenuta}%)` : "";
-    uscite.push({ data: scad, mese: scad.getMonth(), label: `Ritenuta ${f.nome}${pct}`, importo: importoRitenuta, tipo: "ritenuta" });
+    uscite.push({ data: scad, mese: scad.getMonth(), label: `Ritenuta ${f.nome}`, importo: f.importoRitenuta, tipo: "ritenuta" });
   }
 
   uscite.sort((a, b) => a.data.getTime() - b.data.getTime());
@@ -237,7 +229,7 @@ export default async function PrevisioneAnnualePage() {
             Entrate
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note="fatture già incassate nel 2026" />
+            <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note={`fatture già incassate nel ${ANNO} · netto ritenuta IRPEF`} />
             <RigaValore label="Da incassare" value={formatEuro(Math.round(daIncassare))} color="var(--accent)" note="netto ritenuta IRPEF · fatture inviate" />
             <RigaValore
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}

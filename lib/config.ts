@@ -36,7 +36,7 @@ export type CostoRicorrente = {
 };
 
 export const COSTI_RICORRENTI: CostoRicorrente[] = [
-  { label: "Google Workspace", importoNetto: 16.20, aliquotaIVA: 0.22, giornoAddebito: 1 },
+  { label: "Google Workspace", importoNetto: 16.20, aliquotaIVA: 0, giornoAddebito: 1 }, // reverse charge B2B art. 17 DPR 633/72: Google non addebita IVA italiana
   {
     label: "Canone trimestrale",
     importoNetto: 27.25,

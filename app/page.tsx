@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
-import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico } from "@/lib/utils";
-import { SALDO_BASE } from "@/lib/config";
+import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
+import { SALDO_BASE, COSTI_RICORRENTI } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 async function getDashboardData() {
@@ -66,19 +66,23 @@ async function getDashboardData() {
 
   // Calcola scadenze IVA direttamente dalle fatture pagate
   const today = new Date();
+  const ANNO_CORRENTE = today.getFullYear();
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
+  const ivaCredito = calcolaIVACreditoPerTrimestre(fattureRicevute, COSTI_RICORRENTI, ANNO_CORRENTE);
   const scadenzeCalcolate: ScadenzaCalcolata[] = Array.from(ivaPerTrimestre.entries())
-    .map(([trimestre, totaleIVA]) => {
+    .map(([trimestre, ivaDebito]) => {
       const scadenzaStr = scadenzaVersamentoIVA(trimestre);
       const [d, m, y] = scadenzaStr.split("/").map(Number);
       const scadenzaDate = new Date(y, m - 1, d);
       const versata = scadenzaDate < today;
       const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+      const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
+      const totaleIVA = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
       return {
         trimestre: trimestre as ScadenzaCalcolata["trimestre"],
         periodo: periodoTrimestre(trimestre),
@@ -401,10 +405,16 @@ export default async function DashboardPage() {
                 <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text)" }}>{s.trimestre}</span>
                 <span style={{ color: "var(--muted-2)" }}>·</span>
                 <span style={{ fontSize: "0.7rem", color: s.urgent ? "#ff4444" : "var(--muted)" }}>{s.scadenzaStr}</span>
+                <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>
+                  {formatEuro(s.totaleIVA)} netta
+                </span>
                 <StatusBadgeInline status={s.versata ? "Versata" : "Da versare"} />
               </div>
             ))}
           </div>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.5rem" }}>
+            IVA netta = debito meno credito acquisti. &quot;Versata&quot; è inferito dalla scadenza — aggiornare SALDO_BASE dopo ogni F24.
+          </p>
         </section>
       )}
     </div>

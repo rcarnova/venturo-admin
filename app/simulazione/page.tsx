@@ -1,4 +1,4 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal, mapFornitore } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
 import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -6,22 +6,20 @@ import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
 
 export const revalidate = 0;
 
-const ANNO = 2026;
+const ANNO = new Date().getFullYear();
 
 export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages, fornitoriPages] = await Promise.all([
+  const [fatturePages, ricevutePages, pipelinePages] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.PIPELINE),
-    queryAll(DB.FORNITORI),
   ]);
 
-  const fatture      = fatturePages.map(mapFattura);
-  const ricevute     = ricevutePages.map(mapFatturaRicevuta);
-  const deals        = pipelinePages.map(mapDeal);
-  const fornitoriMap = new Map(fornitoriPages.map(p => { const f = mapFornitore(p); return [f.id, f]; }));
+  const fatture  = fatturePages.map(mapFattura);
+  const ricevute = ricevutePages.map(mapFatturaRicevuta);
+  const deals    = pipelinePages.map(mapDeal);
 
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
@@ -74,9 +72,9 @@ async function getData() {
     usciteFisse.push({ mese: d.getMonth(), importo: MUTUO.importoRata, label: "Rata mutuo", tipo: "mutuo" });
   }
 
-  // Fornitori
+  // Fornitori — include fatture da pagare (Ricevuta) e scadute (In ritardo)
   for (const f of ricevute) {
-    if (f.status !== "Ricevuta" || !f.scadenza) continue;
+    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
     const d = new Date(f.scadenza); d.setHours(0, 0, 0, 0);
     if (d > fineAnno) continue;
     const dataEffettiva = d < today ? today : d;
@@ -99,21 +97,16 @@ async function getData() {
     }
   }
 
-  // Ritenute d'acconto
+  // Ritenute d'acconto (importoRitenuta da SDI/Notion — non usa fallback su % fornitore)
   for (const f of ricevute) {
-    const forn = f.fornitore ? fornitoriMap.get(f.fornitore) : null;
-    const importoRitenuta = f.importoRitenuta > 0
-      ? f.importoRitenuta
-      : (forn?.ritenuta && forn.percentualeRitenuta ? Math.round(f.importo * forn.percentualeRitenuta / 100 * 100) / 100 : 0);
-    if (!importoRitenuta) continue;
+    if (!f.importoRitenuta) continue;
     const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
       : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
       : null;
     if (!dataBase) continue;
     const scad = scadenzaRitenuta(dataBase);
     if (scad < today || scad > fineAnno) continue;
-    const pct = forn?.percentualeRitenuta ? ` (${forn.percentualeRitenuta}%)` : "";
-    usciteFisse.push({ mese: scad.getMonth(), importo: importoRitenuta, label: `Ritenuta ${f.nome}${pct}`, tipo: "ritenuta" });
+    usciteFisse.push({ mese: scad.getMonth(), importo: f.importoRitenuta, label: `Ritenuta ${f.nome}`, tipo: "ritenuta" });
   }
 
   // Valore di default anticipo soci dal config (solo date future nell'anno)
