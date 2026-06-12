@@ -3,8 +3,8 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 13_708,
-  data: "2026-05-21", // data ultima riconciliazione manuale (ISO)
+  importo: 16_195.70,
+  data: "2026-06-09", // riconciliazione estratto conto 09/06/2026
 };
 
 // ─── Fido bancario ───────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 3,
-    primaData: { anno: 2026, mese: 11 }, // primo addebito: 31 dicembre 2026
+    primaData: { anno: 2025, mese: 11 }, // ciclo: data valuta 31/12, 31/03, 30/06, 30/09
   },
   {
     label: "Linea di credito banca",
@@ -51,7 +51,7 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 3,
-    primaData: { anno: 2026, mese: 11 }, // primo addebito: 31 dicembre 2026
+    primaData: { anno: 2025, mese: 11 }, // ciclo: data valuta 31/12, 31/03, 30/06, 30/09
   },
   {
     label: "Canone carta di credito",
@@ -60,5 +60,13 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     giornoAddebito: 31,
     frequenzaMesi: 12,
     primaData: { anno: 2026, mese: 3 }, // primo addebito: 30 aprile 2026 (apr = 30gg, giorno cappato)
+  },
+  {
+    label: "Imposta di bollo c/c",
+    importoNetto: 100.00,
+    aliquotaIVA: 0,
+    giornoAddebito: 31,
+    frequenzaMesi: 12,
+    primaData: { anno: 2025, mese: 11 }, // data valuta 31/12 ogni anno, addebitata a inizio gennaio
   },
 ];
