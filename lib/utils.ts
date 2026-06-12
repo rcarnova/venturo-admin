@@ -92,7 +92,7 @@ export function calcolaIVACreditoPerTrimestre(
 
   for (const f of ricevute) {
     if (f.importoIVA <= 0) continue;
-    const dataRef = f.dataPagamento ?? f.scadenza;
+    const dataRef = f.dataPagamento ?? f.scadenza ?? f.dataFattura;
     if (!dataRef) continue;
     const trim = calcolaTrimestre(dataRef);
     if (!trim) continue;
