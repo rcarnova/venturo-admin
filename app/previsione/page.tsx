@@ -411,7 +411,7 @@ export default async function PrevisioneAnnualePage() {
                       <td style={{ fontWeight: 500, fontSize: "0.82rem" }}>{u.label}</td>
                       <td>
                         <span className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                          {u.tipo === "iva" ? "IVA" : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.tipo === "abbonamento" ? "Abbonamento" : "Fornitore"}
+                          {u.tipo === "iva" ? "IVA" : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
                         </span>
                       </td>
                       <td><span className="num" style={{ color: "#ff4444" }}>−{formatEuro(u.importo)}</span></td>

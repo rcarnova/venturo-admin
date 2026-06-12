@@ -306,7 +306,7 @@ export default async function CassaPage() {
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
                     <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : s.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Abbonamento" : "Fornitore"}
+                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
                     </span>
                   </td>
                   <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>

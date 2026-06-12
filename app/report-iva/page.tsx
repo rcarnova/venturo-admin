@@ -16,8 +16,10 @@ async function getData() {
   const fatture = fatturePages.map(mapFattura);
   const ricevute = ricevutePages.map(mapFatturaRicevuta);
 
-  // IVA a credito per trimestre (fatture ricevute + costi ricorrenti)
-  const ivaCreditoMap = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
+  // IVA a credito separata per fonte
+  const ivaCreditoDaFattureMap    = calcolaIVACreditoPerTrimestre(ricevute, [], ANNO);
+  const ivaCreditoDaRicorrentiMap = calcolaIVACreditoPerTrimestre([], COSTI_RICORRENTI, ANNO);
+  const ivaCreditoMap             = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
 
   // IVA a debito per trimestre (fatture emesse pagate)
   const debitoPerTrimestre = new Map<string, ReturnType<typeof mapFattura>[]>();
@@ -30,8 +32,10 @@ async function getData() {
   const today = new Date();
 
   const trimestri = Array.from(debitoPerTrimestre.entries()).map(([trimestre, fatt]) => {
-    const ivaDebito = Math.round(fatt.reduce((s, f) => s + f.iva22, 0) * 100) / 100;
-    const ivaCredito = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
+    const ivaDebito           = Math.round(fatt.reduce((s, f) => s + f.iva22, 0) * 100) / 100;
+    const ivaCredito          = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
+    const ivaCreditoFatture   = Math.round((ivaCreditoDaFattureMap.get(trimestre) ?? 0) * 100) / 100;
+    const ivaCreditoRicorrenti = Math.round((ivaCreditoDaRicorrentiMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaNetta = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
@@ -45,6 +49,8 @@ async function getData() {
       scadenzaDate,
       ivaDebito,
       ivaCredito,
+      ivaCreditoFatture,
+      ivaCreditoRicorrenti,
       ivaNetta,
       versata,
       urgent: !versata && diffDays <= 15,
@@ -57,14 +63,23 @@ async function getData() {
   const totaleIVADaVersare = trimestri.filter((t) => !t.versata).reduce((s, t) => s + t.ivaNetta, 0);
   const totaleCredito      = trimestri.reduce((s, t) => s + t.ivaCredito, 0);
 
-  // Dettaglio ricevute con IVA detraibile (per la sezione credito)
+  // Dettaglio ricevute con IVA detraibile (con fattura SDI)
   const ricevuteConIVA = ricevute.filter((f) => f.importoIVA > 0);
 
-  return { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA };
+  // Costi ricorrenti con IVA (senza fattura SDI)
+  const costiRicorrentiConIVA = COSTI_RICORRENTI.filter((c) => c.aliquotaIVA > 0).map((c) => ({
+    label: c.label,
+    importoNetto: c.importoNetto,
+    aliquotaIVA: c.aliquotaIVA,
+    ivaPerOccorrenza: Math.round(c.importoNetto * c.aliquotaIVA * 100) / 100,
+    frequenzaMesi: c.frequenzaMesi ?? 1,
+  }));
+
+  return { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA };
 }
 
 export default async function ReportIVAPage() {
-  const { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA } = await getData();
+  const { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA } = await getData();
 
   return (
     <div>
@@ -151,10 +166,20 @@ export default async function ReportIVAPage() {
                     <td colSpan={2} style={{ paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>IVA a debito</td>
                     <td colSpan={2} style={{ paddingTop: "0.5rem" }}><span className="num" style={{ color: "var(--accent)", fontWeight: 700, fontSize: "0.9rem" }}>{formatEuro(t.ivaDebito)}</span></td>
                   </tr>
-                  {t.ivaCredito > 0 && (
+                  {t.ivaCreditoFatture > 0 && (
                     <tr>
-                      <td colSpan={2} style={{ paddingTop: "0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>IVA a credito (acquisti)</td>
-                      <td colSpan={2} style={{ paddingTop: "0.25rem" }}><span className="num" style={{ color: "var(--sage)", fontWeight: 600 }}>−{formatEuro(t.ivaCredito)}</span></td>
+                      <td colSpan={2} style={{ paddingTop: "0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
+                        IVA a credito — <span style={{ color: "var(--sage)" }}>fatture SDI</span>
+                      </td>
+                      <td colSpan={2} style={{ paddingTop: "0.25rem" }}><span className="num" style={{ color: "var(--sage)", fontWeight: 600 }}>−{formatEuro(t.ivaCreditoFatture)}</span></td>
+                    </tr>
+                  )}
+                  {t.ivaCreditoRicorrenti > 0 && (
+                    <tr>
+                      <td colSpan={2} style={{ paddingTop: "0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
+                        IVA a credito — <span style={{ color: "var(--muted)" }}>abbonamenti (manuale)</span>
+                      </td>
+                      <td colSpan={2} style={{ paddingTop: "0.25rem" }}><span className="num" style={{ color: "var(--sage)" }}>−{formatEuro(t.ivaCreditoRicorrenti)}</span></td>
                     </tr>
                   )}
                   <tr style={{ borderTop: "1px solid var(--border)" }}>
@@ -184,17 +209,20 @@ export default async function ReportIVAPage() {
         ))}
       </div>
 
-      {/* Dettaglio ricevute con IVA */}
+      {/* Dettaglio credito — fatture SDI */}
       {ricevuteConIVA.length > 0 && (
         <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden", marginBottom: "1rem" }}>
-          <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--border)", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--sage)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Fatture ricevute con IVA detraibile
+          <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--sage)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              IVA a credito — fatture ricevute
+            </span>
+            <span className="badge badge-success" style={{ fontSize: "0.55rem" }}>con fattura SDI</span>
           </div>
           <div style={{ padding: "0.75rem 1.5rem" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Fattura ricevuta", "Data", "Importo", "IVA detraibile"].map((h) => (
+                  {["Fattura ricevuta", "Data", "Importo lordo", "IVA detraibile"].map((h) => (
                     <th key={h} style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", letterSpacing: "0.06em", textTransform: "uppercase", textAlign: "left", paddingBottom: "0.4rem", paddingRight: "1rem" }}>{h}</th>
                   ))}
                 </tr>
@@ -211,8 +239,55 @@ export default async function ReportIVAPage() {
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: "1px solid var(--border)" }}>
-                  <td colSpan={3} style={{ paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>Totale IVA detraibile fatture</td>
+                  <td colSpan={3} style={{ paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>Totale IVA detraibile da fatture</td>
                   <td style={{ paddingTop: "0.5rem" }}><span className="num" style={{ color: "var(--sage)", fontWeight: 700 }}>−{formatEuro(ricevuteConIVA.reduce((s, f) => s + f.importoIVA, 0))}</span></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Dettaglio credito — abbonamenti manuali */}
+      {costiRicorrentiConIVA.length > 0 && (
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden", marginBottom: "1rem" }}>
+          <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              IVA a credito — abbonamenti ricorrenti
+            </span>
+            <span className="badge badge-neutral" style={{ fontSize: "0.55rem" }}>manuale · senza fattura SDI</span>
+          </div>
+          <div style={{ padding: "0.75rem 1.5rem" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Abbonamento", "Importo netto", "Aliquota", "IVA/occorrenza", "Frequenza"].map((h) => (
+                    <th key={h} style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", letterSpacing: "0.06em", textTransform: "uppercase", textAlign: "left", paddingBottom: "0.4rem", paddingRight: "1rem" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {costiRicorrentiConIVA.map((c) => (
+                  <tr key={c.label} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "0.4rem 1rem 0.4rem 0", fontSize: "0.82rem", fontWeight: 500 }}>{c.label}</td>
+                    <td style={{ padding: "0.4rem 1rem 0.4rem 0" }}><span className="num">{formatEuro(c.importoNetto)}</span></td>
+                    <td style={{ padding: "0.4rem 1rem 0.4rem 0" }}><span className="num" style={{ color: "var(--muted)" }}>{Math.round(c.aliquotaIVA * 100)}%</span></td>
+                    <td style={{ padding: "0.4rem 1rem 0.4rem 0" }}><span className="num" style={{ color: "var(--sage)" }}>−{formatEuro(c.ivaPerOccorrenza)}</span></td>
+                    <td style={{ padding: "0.4rem 0", fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
+                      {c.frequenzaMesi === 1 ? "mensile" : c.frequenzaMesi === 3 ? "trimestrale" : c.frequenzaMesi === 12 ? "annuale" : `ogni ${c.frequenzaMesi} mesi`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: "1px solid var(--border)" }}>
+                  <td colSpan={3} style={{ paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>IVA stimata anno corrente</td>
+                  <td colSpan={2} style={{ paddingTop: "0.5rem" }}>
+                    <span className="num" style={{ color: "var(--sage)", fontWeight: 700 }}>
+                      −{formatEuro(costiRicorrentiConIVA.reduce((s, c) => s + c.ivaPerOccorrenza * (12 / c.frequenzaMesi), 0))}
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", marginLeft: "0.5rem" }}>su {new Date().getFullYear()}</span>
+                  </td>
                 </tr>
               </tfoot>
             </table>
