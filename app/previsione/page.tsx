@@ -1,6 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 
 export const revalidate = 0;
@@ -209,6 +210,10 @@ export default async function PrevisioneAnnualePage() {
         title={`Previsione ${ANNO}`}
         subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale ${formatEuro(saldoAttuale)}`}
       />
+      <TabNav tabs={[
+        { href: "/previsione", label: "Previsione anno", active: true },
+        { href: "/simulazione", label: "Simula scenario", active: false },
+      ]} />
 
       {/* Semestre badge */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.75rem" }}>

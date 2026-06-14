@@ -1,6 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapCliente } from "@/lib/notion";
 import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { TabNav } from "@/components/shared/TabNav";
 import Link from "next/link";
 
 export const revalidate = 0;
@@ -74,7 +75,7 @@ async function getData() {
       label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`,
       importo: totaleIVA,
       urgente: diffDays <= 15,
-      href: "/scadenze-iva",
+      href: "/report-iva",
     });
   }
 
@@ -132,9 +133,13 @@ export default async function ScadenziarioPage() {
   return (
     <div>
       <PageHeader
-        title="Scadenziario"
+        title="Cassa"
         subtitle="Prossimi 90 giorni"
       />
+      <TabNav tabs={[
+        { href: "/cassa", label: "Proiezione flussi", active: false },
+        { href: "/scadenziario", label: "Calendario eventi", active: true },
+      ]} />
 
       {/* Fatture da incassare (senza data) */}
       {daIncassare.length > 0 && (

@@ -100,7 +100,7 @@ async function getDashboardData() {
 
   const scadenzeImminenti = scadenzeCalcolate.filter((s) => s.urgent);
   if (scadenzeImminenti.length > 0)
-    alerts.push({ tipo: "scadenza_iva", count: scadenzeImminenti.length, urgente: true, label: "Scadenze IVA imminenti", href: "/scadenze-iva" });
+    alerts.push({ tipo: "scadenza_iva", count: scadenzeImminenti.length, urgente: true, label: "Scadenze IVA imminenti", href: "/report-iva" });
 
   // Pipeline: venduto vs fatturato
   const deals = pipelinePages.map(mapDeal);

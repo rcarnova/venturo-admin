@@ -2,6 +2,7 @@ import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/not
 import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { TabNav } from "@/components/shared/TabNav";
 import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
 
 export const revalidate = 0;
@@ -122,9 +123,13 @@ export default async function SimulazionePage() {
   return (
     <div>
       <PageHeader
-        title="Simulazione Anticipi Soci"
+        title="Previsione"
         subtitle={`Modifica importi e date per vedere l'impatto sul saldo fino a dicembre ${ANNO}`}
       />
+      <TabNav tabs={[
+        { href: "/previsione", label: "Previsione anno", active: false },
+        { href: "/simulazione", label: "Simula scenario", active: true },
+      ]} />
       <SimulazioneClient {...data} />
     </div>
   );

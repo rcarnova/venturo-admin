@@ -1,6 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 
 export const revalidate = 0;
@@ -205,9 +206,13 @@ export default async function CassaPage() {
   return (
     <div>
       <PageHeader
-        title="Proiezione Cassa"
+        title="Cassa"
         subtitle={`Prossimi 90 giorni + scadenze IVA · saldo attuale ${formatEuro(saldoAttuale)}`}
       />
+      <TabNav tabs={[
+        { href: "/cassa", label: "Proiezione flussi", active: true },
+        { href: "/scadenziario", label: "Calendario eventi", active: false },
+      ]} />
 
       {/* Cards di sintesi */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>

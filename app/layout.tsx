@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
+import { SidebarWithBadges } from "@/components/layout/SidebarWithBadges";
 import { getIronSession } from "iron-session";
 import { SessionData, sessionOptions } from "@/lib/session";
 import { cookies } from "next/headers";
@@ -30,7 +30,7 @@ export default async function RootLayout({
         <div className="neon-bar" />
         {username ? (
           <div className="app-shell">
-            <Sidebar username={username} />
+            <SidebarWithBadges username={username} />
             <main className="main-content">
               {children}
             </main>
