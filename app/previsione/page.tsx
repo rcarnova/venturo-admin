@@ -2,13 +2,15 @@ import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/not
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { getAnticipiSoci } from "@/lib/anticipi";
 
 export const revalidate = 0;
 
 const ANNO = new Date().getFullYear();
 
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+const MESI_SHORT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 type Uscita = {
   data: Date;
@@ -19,10 +21,11 @@ type Uscita = {
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages] = await Promise.all([
+  const [fatturePages, ricevutePages, pipelinePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.PIPELINE),
+    getAnticipiSoci(),
   ]);
 
   const fatture  = fatturePages.map(mapFattura);
@@ -98,8 +101,8 @@ async function getData() {
     uscite.push({ data: d, mese: d.getMonth(), label: "Rata mutuo", importo: MUTUO.importoRata, tipo: "mutuo" });
   }
 
-  // Anticipo soci — rate pianificate
-  for (const a of ANTICIPO_SOCI) {
+  // Anticipo soci — rate pianificate (da Notion se configurato, altrimenti config.ts)
+  for (const a of anticipiSoci) {
     const d = new Date(a.data); d.setHours(0, 0, 0, 0);
     if (d < today || d > fineAnno) continue;
     uscite.push({ data: d, mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
@@ -149,6 +152,8 @@ async function getData() {
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of uscite) uscitePerMese[u.mese] += u.importo;
 
+  const noteAnticipo = uscite.filter(u => u.tipo === "anticipo_soci").map(u => `${MESI_SHORT[u.mese]} ${formatEuro(u.importo)}`).join(" · ") || "nessuno";
+
   const totaleIVA2026         = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
   const totaleMutuo2026       = uscite.filter(u => u.tipo === "mutuo").reduce((s, u) => s + u.importo, 0);
   const totaleFornitore2026   = uscite.filter(u => u.tipo === "fornitore").reduce((s, u) => s + u.importo, 0);
@@ -177,7 +182,7 @@ async function getData() {
   }
 
   return {
-    semestre, fattore,
+    semestre, fattore, noteAnticipo,
     incassatoYTD, incassatoPerMese, meseCorrente,
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
@@ -192,7 +197,7 @@ async function getData() {
 
 export default async function PrevisioneAnnualePage() {
   const {
-    semestre, fattore,
+    semestre, fattore, noteAnticipo,
     incassatoYTD, meseCorrente,
     daIncassare, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
@@ -254,7 +259,7 @@ export default async function PrevisioneAnnualePage() {
             Uscite pianificate
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note="lug €14.000 · ott €10.000 · dic €10.000" />
+            <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note={noteAnticipo} />
             <RigaValore label="IVA (Q2 + Q3)" value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
             <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />

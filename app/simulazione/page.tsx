@@ -1,6 +1,7 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
 import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { getAnticipiSoci } from "@/lib/anticipi";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
@@ -12,10 +13,11 @@ const ANNO = new Date().getFullYear();
 export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages] = await Promise.all([
+  const [fatturePages, ricevutePages, pipelinePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.PIPELINE),
+    getAnticipiSoci(),
   ]);
 
   const fatture  = fatturePages.map(mapFattura);
@@ -110,12 +112,14 @@ async function getData() {
     usciteFisse.push({ mese: scad.getMonth(), importo: f.importoRitenuta, label: `Ritenuta ${f.nome}`, tipo: "ritenuta" });
   }
 
-  // Valore di default anticipo soci dal config (solo date future nell'anno)
-  const anticipoDefault = ANTICIPO_SOCI
+  // Anticipi soci — da Notion se configurato, altrimenti config.ts (solo date future nell'anno)
+  const anticipoDefault = anticipiSoci
     .filter(a => { const d = new Date(a.data); d.setHours(0, 0, 0, 0); return d >= today && d <= fineAnno; })
     .map(a => ({ dataStr: new Date(a.data).toISOString().split("T")[0], importo: a.importo }));
 
-  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
+  const hasNotionDB = !!process.env.NOTION_DB_ANTICIPI;
+
+  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO, hasNotionDB };
 }
 
 export default async function SimulazionePage() {

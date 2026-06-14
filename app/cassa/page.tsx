@@ -2,7 +2,8 @@ import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/li
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
-import { SALDO_BASE, MUTUO, ANTICIPO_SOCI, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { getAnticipiSoci } from "@/lib/anticipi";
 
 export const revalidate = 0;
 
@@ -17,10 +18,11 @@ type Flusso = {
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, notePages] = await Promise.all([
+  const [fatturePages, ricevutePages, notePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
     queryAll(DB.NOTE_SPESE),
+    getAnticipiSoci(),
   ]);
   const fatture  = fatturePages.map(mapFattura);
   const ricevute = ricevutePages.map(mapFatturaRicevuta);
@@ -125,8 +127,8 @@ async function getData() {
     }
   }
 
-  // Anticipo soci — rate pianificate
-  ANTICIPO_SOCI.forEach((a, i) => {
+  // Anticipo soci — rate pianificate (da Notion se configurato, altrimenti config.ts)
+  anticipiSoci.forEach((a, i) => {
     const d = new Date(a.data); d.setHours(0, 0, 0, 0);
     if (d < today || d > in90) return;
     flussi.push({
