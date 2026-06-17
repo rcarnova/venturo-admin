@@ -1,4 +1,4 @@
-import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
+import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
@@ -21,24 +21,19 @@ type Uscita = {
 };
 
 async function getData() {
-  const [fatturePages, ricevutePages, pipelinePages, anticipiSoci] = await Promise.all([
+  const [fatturePages, ricevutePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
-    queryAll(DB.PIPELINE),
     getAnticipiSoci(),
   ]);
 
   const fatture  = fatturePages.map(mapFattura);
   const ricevute = ricevutePages.map(mapFatturaRicevuta);
-  const deals    = pipelinePages.map(mapDeal);
 
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
   const meseCorrente = today.getMonth(); // 0-indexed
   const oggiStr = today.toISOString().split("T")[0]; // "YYYY-MM-DD"
-
-  const semestre  = meseCorrente < 6 ? 1 : 2;
-  const fattore   = semestre === 1 ? 1.0 : 0.5;
 
   const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
 
@@ -61,11 +56,6 @@ async function getData() {
     f.status === "Inviata" ||
     (f.status === "Da inviare" && f.dataIncassoAtteso != null)
   );
-  // Won deals: residuo da fatturare × fattore semestre
-  const wonDeals = deals.filter(d => d.status === "Won");
-  const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
-  const daFatturareWon = Math.max(0, totaleVenduto - totaleFatturato) * fattore;
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
@@ -192,7 +182,7 @@ async function getData() {
   const daIncassareFuoriAnno = Math.round(
     (fattureInForecast.reduce((s, f) => s + f.incassoNetto, 0) - daIncassare) * 100
   ) / 100;
-  const totaleEntrateAttese = daIncassare + daFatturareWon;
+  const totaleEntrateAttese = daIncassare;
 
   const noteAnticipo = uscite.filter(u => u.tipo === "anticipo_soci").map(u => `${MESI_SHORT[u.mese]} ${formatEuro(u.importo)}`).join(" · ") || "nessuno";
 
@@ -242,9 +232,9 @@ async function getData() {
   }
 
   return {
-    semestre, fattore, noteAnticipo,
+    noteAnticipo,
     incassatoYTD, incassatoPerMese, meseCorrente,
-    daIncassare, daIncassareFuoriAnno, daFatturareWon, totaleVenduto,
+    daIncassare, daIncassareFuoriAnno,
     totaleEntrateAttese,
     uscite,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
@@ -252,16 +242,15 @@ async function getData() {
     righe,
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
-    nWon: wonDeals.length,
     saldoAttuale: SALDO_INIZIALE,
   };
 }
 
 export default async function PrevisioneAnnualePage() {
   const {
-    semestre, fattore, noteAnticipo,
+    noteAnticipo,
     incassatoYTD, meseCorrente,
-    daIncassare, daIncassareFuoriAnno, daFatturareWon, totaleVenduto,
+    daIncassare, daIncassareFuoriAnno,
     totaleEntrateAttese,
     uscite,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
@@ -269,7 +258,6 @@ export default async function PrevisioneAnnualePage() {
     righe,
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
-    nWon,
     saldoAttuale,
   } = await getData();
 
@@ -284,17 +272,6 @@ export default async function PrevisioneAnnualePage() {
         { href: "/simulazione", label: "Simula scenario", active: false },
       ]} />
 
-      {/* Semestre badge */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.75rem" }}>
-        <span className={`badge ${semestre === 1 ? "badge-accent" : "badge-warning"}`}>
-          {semestre === 1 ? "1° Semestre" : "2° Semestre"}
-        </span>
-        <span className="semestre-row" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
-          Venduto {nWon} deal Won · conteggiato al {Math.round(fattore * 100)}%
-          {semestre === 2 ? " — delivery potenzialmente nel 2027" : " — consegna attesa entro fine anno"}
-        </span>
-      </div>
-
       {/* Entrate / Uscite stat cards */}
       <div className="grid-2col" style={{ marginBottom: "1.75rem" }}>
         {/* Entrate */}
@@ -306,7 +283,6 @@ export default async function PrevisioneAnnualePage() {
             <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)" }}>
               <span style={{ color: "#00c864" }}>● reale</span>
               <span style={{ color: "var(--accent)" }}>● impegno</span>
-              <span style={{ color: "#ffb400" }}>~ scenario</span>
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -326,16 +302,6 @@ export default async function PrevisioneAnnualePage() {
               note={daIncassareFuoriAnno > 0
                 ? `netto ritenuta · ${formatEuro(Math.round(daIncassareFuoriAnno))} fuori ${ANNO} (esclusi dalla timeline)`
                 : "netto ritenuta IRPEF · Inviata + Da inviare con data attesa"}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "#ffb400", letterSpacing: "0.05em" }}>~</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Scenario</span>
-            </div>
-            <RigaValore
-              label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
-              value={`~${formatEuro(Math.round(daFatturareWon))}`}
-              color={semestre === 1 ? "var(--text)" : "#ffb400"}
-              note={`imponibile · su ${formatEuro(totaleVenduto)} totale Won`}
             />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <RigaValore label="Totale entrate attese" value={formatEuro(Math.round(totaleEntrateAttese))} color="var(--text)" bold />
@@ -409,7 +375,7 @@ export default async function PrevisioneAnnualePage() {
             {formatEuro(Math.round(saldoOttimistico))}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            + entrate attese ({formatEuro(Math.round(totaleEntrateAttese))})
+            se incassi tutto · da fatture Inviata
           </div>
         </div>
       </div>
@@ -522,21 +488,6 @@ export default async function PrevisioneAnnualePage() {
                   </td>
                 </tr>
               ))}
-              {/* Riga scenario ottimistico finale: running_dic + daFatturareWon */}
-              <tr style={{ borderTop: "1px solid var(--border)", background: "rgba(255,180,0,0.02)" }}>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#ffb400" }}>~ Scenario ottimistico</td>
-                <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
-                  {daFatturareWon > 0
-                    ? `+ ${formatEuro(Math.round(daFatturareWon))} deal Won da fatturare`
-                    : "tutti i deal Won già fatturati"}
-                </td>
-                <td>
-                  {daFatturareWon > 0 && (
-                    <span className="num" style={{ color: "#ffb400" }}>~+{formatEuro(Math.round(daFatturareWon))}</span>
-                  )}
-                </td>
-                <td><span className="num" style={{ color: saldoOttimistico >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>~{formatEuro(Math.round(saldoOttimistico))}</span></td>
-              </tr>
             </tbody>
           </table>
         </div>
