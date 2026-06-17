@@ -108,17 +108,12 @@ async function getDashboardData() {
   if (scadenzeImminenti.length > 0)
     alerts.push({ tipo: "scadenza_iva", count: scadenzeImminenti.length, urgente: true, label: "Scadenze IVA imminenti", href: "/report-iva" });
 
-  // Pipeline: venduto vs fatturato — conta solo le fatture collegate a deal Won
+  // Pipeline: venduto vs fatturato
   const deals = pipelinePages.map(mapDeal);
   const wonDeals = deals.filter((d) => d.status === "Won");
   const openDeals = deals.filter((d) => d.status === "Open");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const fatturePerProgetto = new Map<string, number>();
-  for (const f of fatture) {
-    if (!f.progetto) continue;
-    fatturePerProgetto.set(f.progetto, (fatturePerProgetto.get(f.progetto) ?? 0) + f.importo);
-  }
-  const totaleFatturato = wonDeals.reduce((s, d) => s + (d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0), 0);
+  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
   const totaleDaFatturare = Math.max(0, totaleVenduto - totaleFatturato);
   const totaleOpenPipeline = openDeals.reduce((s, d) => s + d.valore, 0);
 
