@@ -56,9 +56,12 @@ async function getData() {
     }
   }
 
-  const daIncassare = fatture
-    .filter(f => f.status === "Inviata")
-    .reduce((s, f) => s + f.incassoNetto, 0);
+  // Previsione: include "Inviata" + "Da inviare" con dataIncassoAtteso (simulazione flussi)
+  const fattureInForecast = fatture.filter(f =>
+    f.status === "Inviata" ||
+    (f.status === "Da inviare" && f.dataIncassoAtteso != null)
+  );
+  const daIncassare = fattureInForecast.reduce((s, f) => s + f.incassoNetto, 0);
 
   // Won deals: residuo da fatturare × fattore semestre
   const wonDeals = deals.filter(d => d.status === "Won");
@@ -152,21 +155,23 @@ async function getData() {
   // Priorità: dataIncassoAtteso (Notion) > dataInvio+30gg > oggi+30gg
   const entrateAttesaPerMese = Array(12).fill(0) as number[];
   const entrateDettaglioPerMese: { nome: string; importo: number }[][] = Array.from({ length: 12 }, () => []);
-  for (const f of fatture) {
-    if (f.status !== "Inviata") continue;
+  for (const f of fattureInForecast) {
     let d: Date;
     if (f.dataIncassoAtteso) {
       d = new Date(f.dataIncassoAtteso + "T00:00:00");
     } else {
+      // Solo "Inviata" senza dataIncassoAtteso: stima +30gg da dataInvio o da oggi
       d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
       d.setDate(d.getDate() + 30);
     }
-    // Se la data prevista è nel passato, posiziona nel mese corrente
     if (d < today) d = new Date(today);
     if (d.getFullYear() !== ANNO) continue;
     const m = d.getMonth();
     entrateAttesaPerMese[m] += f.incassoNetto;
-    entrateDettaglioPerMese[m].push({ nome: f.nome, importo: f.incassoNetto });
+    entrateDettaglioPerMese[m].push({
+      nome: f.status === "Da inviare" ? `⚑ ${f.nome}` : f.nome,
+      importo: f.incassoNetto,
+    });
   }
 
   const noteAnticipo = uscite.filter(u => u.tipo === "anticipo_soci").map(u => `${MESI_SHORT[u.mese]} ${formatEuro(u.importo)}`).join(" · ") || "nessuno";
@@ -279,7 +284,7 @@ export default async function PrevisioneAnnualePage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note={`fatture già incassate nel ${ANNO} · netto ritenuta IRPEF`} />
-            <RigaValore label="Da incassare" value={formatEuro(Math.round(daIncassare))} color="var(--accent)" note="netto ritenuta IRPEF · fatture inviate" />
+            <RigaValore label="Da incassare" value={formatEuro(Math.round(daIncassare))} color="var(--accent)" note="netto ritenuta IRPEF · Inviata + Da inviare con data attesa" />
             <RigaValore
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
               value={formatEuro(Math.round(daFatturareWon))}
