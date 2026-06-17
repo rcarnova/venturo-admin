@@ -4,6 +4,8 @@ import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaS
 import { SALDO_BASE, COSTI_RICORRENTI } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
+export const revalidate = 0;
+
 async function getDashboardData() {
   const [fatturePages, fattureRicevutePages, notePages, fornitori, pipelinePages] =
     await Promise.all([
