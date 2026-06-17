@@ -148,6 +148,19 @@ async function getData() {
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of uscite) uscitePerMese[u.mese] += u.importo;
 
+  // Per mese: entrate attese da fatture Inviata con regola +30gg
+  const entrateAttesaPerMese = Array(12).fill(0) as number[];
+  const entrateDettaglioPerMese: { nome: string; importo: number }[][] = Array.from({ length: 12 }, () => []);
+  for (const f of fatture) {
+    if (f.status !== "Inviata") continue;
+    const d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
+    d.setDate(d.getDate() + 30);
+    if (d.getFullYear() !== ANNO) continue;
+    const m = d.getMonth();
+    entrateAttesaPerMese[m] += f.incassoNetto;
+    entrateDettaglioPerMese[m].push({ nome: f.nome, importo: f.incassoNetto });
+  }
+
   const noteAnticipo = uscite.filter(u => u.tipo === "anticipo_soci").map(u => `${MESI_SHORT[u.mese]} ${formatEuro(u.importo)}`).join(" · ") || "nessuno";
 
   const totaleIVA2026         = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
@@ -161,15 +174,18 @@ async function getData() {
   const saldoConservativo  = SALDO_INIZIALE - totaleUscite;
   const saldoOttimistico   = SALDO_INIZIALE + totaleEntrateAttese - totaleUscite;
 
-  // Running balance mensile (da mese corrente a dicembre, solo uscite)
-  // saldo parte da SALDO_INIZIALE oggi
-  const righe: { mese: number; uscite: number; saldo: number; passato: boolean; usciteDettaglio: Uscita[] }[] = [];
+  // Running balance mensile: uscite certe + entrate attese da fatture Inviata (+30gg)
+  const righe: { mese: number; entrate: number; entrateDettaglio: { nome: string; importo: number }[]; uscite: number; saldo: number; passato: boolean; usciteDettaglio: Uscita[] }[] = [];
   let running = SALDO_INIZIALE;
   for (let m = meseCorrente; m <= 11; m++) {
     const usciteMese = uscitePerMese[m];
+    const entrateMese = entrateAttesaPerMese[m];
+    running += entrateMese;
     running -= usciteMese;
     righe.push({
       mese: m,
+      entrate: entrateMese,
+      entrateDettaglio: entrateDettaglioPerMese[m],
       uscite: usciteMese,
       saldo: running,
       passato: false,
@@ -322,7 +338,7 @@ export default async function PrevisioneAnnualePage() {
 
       {/* Timeline mensile */}
       <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
-        Proiezione mensile — solo uscite certe
+        Proiezione mensile — entrate attese + uscite certe
       </div>
       <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden", marginBottom: "2rem" }}>
         <div className="table-scroll">
@@ -330,8 +346,8 @@ export default async function PrevisioneAnnualePage() {
             <thead>
               <tr>
                 <th>Mese</th>
-                <th className="col-hide-mobile">Uscite dettaglio</th>
-                <th>Totale uscite</th>
+                <th className="col-hide-mobile">Movimenti</th>
+                <th>Netto mese</th>
                 <th>Saldo fine mese</th>
               </tr>
             </thead>
@@ -349,18 +365,26 @@ export default async function PrevisioneAnnualePage() {
                   </td>
                   <td className="col-hide-mobile">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                      {r.entrateDettaglio.map((e, i) => (
+                        <span key={`e-${i}`} style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.25)", borderRadius: "3px", padding: "0.2rem 0.45rem", color: "#00c864" }}>
+                          ↑ {e.nome} {formatEuro(e.importo)}
+                        </span>
+                      ))}
                       {r.usciteDettaglio.map((u, i) => (
-                        <span key={i} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
+                        <span key={`u-${i}`} className={`badge ${u.tipo === "iva" || u.tipo === "ritenuta" ? "badge-error" : u.tipo === "mutuo" || u.tipo === "abbonamento" ? "badge-neutral" : u.tipo === "anticipo_soci" ? "badge-accent" : "badge-warning"}`} style={{ fontSize: "0.55rem" }}>
                           {u.tipo === "iva" ? u.label.split("—")[0].trim() : u.tipo === "ritenuta" ? "Ritenuta" : u.tipo === "mutuo" ? "Mutuo" : u.tipo === "anticipo_soci" ? "Anticipo" : u.tipo === "abbonamento" ? u.label : u.label} {formatEuro(u.importo)}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td>
-                    {r.uscite > 0
-                      ? <span className="num" style={{ color: "#ff4444" }}>−{formatEuro(Math.round(r.uscite * 100) / 100)}</span>
-                      : <span style={{ color: "var(--muted-2)", fontSize: "0.7rem" }}>—</span>
-                    }
+                    {(r.entrate > 0 || r.uscite > 0) ? (
+                      <span className="num" style={{ color: r.entrate >= r.uscite ? "#00c864" : "#ff4444" }}>
+                        {r.entrate >= r.uscite ? "+" : "−"}{formatEuro(Math.abs(Math.round((r.entrate - r.uscite) * 100) / 100))}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--muted-2)", fontSize: "0.7rem" }}>—</span>
+                    )}
                   </td>
                   <td>
                     <span className="num" style={{ color: r.saldo < 0 ? "#ff4444" : r.saldo < 2000 ? "#ffb400" : "var(--text)", fontWeight: 600 }}>
