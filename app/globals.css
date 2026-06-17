@@ -29,17 +29,17 @@
 
   /* Text */
   --text:    var(--ink-100);
-  --muted:   var(--ink-500);
-  --muted-2: var(--ink-700);
+  --muted:   var(--ink-300);  /* #a8a69e — CR ~5.9:1 su surface-2 */
+  --muted-2: var(--ink-500);  /* #6b6a64 — CR ~2.6:1 su surface-2 (era ink-700: 1.4:1) */
 
   /* Borders — warm tinted */
   --border:       rgba(226, 223, 213, 0.09);
   --border-hover: rgba(226, 223, 213, 0.2);
 
   /* Sage — positive / success accent */
-  --sage:        #5a9e72;
-  --sage-dim:    rgba(90, 158, 114, 0.12);
-  --sage-border: rgba(90, 158, 114, 0.25);
+  --sage:        #6bba7e;  /* era #5a9e72 — CR ~5.8:1 su surface-2 (era 4.2:1) */
+  --sage-dim:    rgba(107, 186, 126, 0.10);
+  --sage-border: rgba(107, 186, 126, 0.22);
 
   /* Semantic */
   --success: #4a9e6a;
