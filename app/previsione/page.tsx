@@ -371,11 +371,11 @@ export default async function PrevisioneAnnualePage() {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
             Saldo ottimistico
           </div>
-          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: (saldoOttimistico + FIDO_BANCARIO) < 0 ? "#ff4444" : "var(--sage)" }}>
+          <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: (saldoOttimistico + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoOttimistico + FIDO_BANCARIO) < 3000 ? "#ffb400" : "var(--sage)" }}>
             {formatEuro(Math.round(saldoOttimistico))}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            se incassi tutto · da fatture Inviata
+            se incassi tutto · Inviata + Da inviare con data · con fido: {formatEuro(Math.round(saldoOttimistico) + FIDO_BANCARIO)}
           </div>
         </div>
       </div>
