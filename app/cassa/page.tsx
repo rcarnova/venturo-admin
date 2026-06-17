@@ -88,10 +88,10 @@ async function getData() {
       ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
     }
   }
-  // IVA attesa da fatture Inviata — usa regola +30gg da dataInvio per determinare il trimestre
+  // IVA attesa da fatture Inviata — +30gg sempre (da dataInvio se presente, altrimenti da oggi)
   for (const f of fattureAttese) {
     const d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
-    if (f.dataInvio) d.setDate(d.getDate() + 30);
+    d.setDate(d.getDate() + 30); // regola +30gg applicata in ogni caso
     const trim = calcolaTrimestre(d.toISOString().split("T")[0]);
     if (!trim) continue;
     const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
