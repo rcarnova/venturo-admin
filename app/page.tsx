@@ -46,10 +46,6 @@ async function getDashboardData() {
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
   const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.incassoNetto, 0);
-  const fattureInviateMesiExtra = fattureInviate.filter(f => {
-    const anno = (f.dataInvio ?? f.createdAt).slice(0, 4);
-    return anno !== String(ANNO_CORRENTE);
-  }).length;
   const fatturePagate = fatture.filter((f) => f.status === "Pagata");
   const totalePagato = fatturePagate.reduce((s, f) => s + f.incassoNetto, 0);
   const totaleIVAPagata = fatturePagate.reduce((s, f) => s + f.iva22, 0);
@@ -71,6 +67,10 @@ async function getDashboardData() {
   // Calcola scadenze IVA direttamente dalle fatture pagate
   const today = new Date();
   const ANNO_CORRENTE = today.getFullYear();
+  const fattureInviateMesiExtra = fattureInviate.filter(f => {
+    const anno = (f.dataInvio ?? f.createdAt).slice(0, 4);
+    return anno !== String(ANNO_CORRENTE);
+  }).length;
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
