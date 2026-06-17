@@ -35,6 +35,7 @@ async function getData() {
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
   const meseCorrente = today.getMonth(); // 0-indexed
+  const oggiStr = today.toISOString().split("T")[0]; // "YYYY-MM-DD"
 
   const semestre  = meseCorrente < 6 ? 1 : 2;
   const fattore   = semestre === 1 ? 1.0 : 0.5;
@@ -42,13 +43,14 @@ async function getData() {
   const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
 
   // ── Entrate ────────────────────────────────────────────────────────────
+  // solo incassi effettivamente avvenuti (dataIncasso <= oggi)
   const incassatoYTD = fatture
-    .filter(f => f.status === "Pagata" && f.dataIncasso?.startsWith(`${ANNO}`))
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso.startsWith(`${ANNO}`) && f.dataIncasso <= oggiStr)
     .reduce((s, f) => s + f.incassoNetto, 0);
 
   const incassatoPerMese = Array(12).fill(0) as number[];
   for (const f of fatture) {
-    if (f.status === "Pagata" && f.dataIncasso?.startsWith(`${ANNO}`)) {
+    if (f.status === "Pagata" && f.dataIncasso && f.dataIncasso.startsWith(`${ANNO}`) && f.dataIncasso <= oggiStr) {
       const m = parseInt(f.dataIncasso.slice(5, 7)) - 1;
       incassatoPerMese[m] += f.incassoNetto;
     }

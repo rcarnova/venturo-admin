@@ -125,12 +125,14 @@ export function calcolaSaldoDinamico(
   baseImporto: number,
   baseData: string
 ): number {
+  const oggi = new Date().toISOString().split("T")[0]; // solo movimenti già avvenuti
+
   const incassi = fatture
-    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > baseData)
+    .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > baseData && f.dataIncasso <= oggi)
     .reduce((s, f) => s + f.incassoNetto, 0);
 
   const pagamenti = ricevute
-    .filter(f => f.status === "Pagata" && f.dataPagamento && f.dataPagamento > baseData)
+    .filter(f => f.status === "Pagata" && f.dataPagamento && f.dataPagamento > baseData && f.dataPagamento <= oggi)
     .reduce((s, f) => s + f.importo, 0);
 
   return Math.round(baseImporto + incassi - pagamenti);
