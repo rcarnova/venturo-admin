@@ -61,15 +61,11 @@ async function getData() {
     f.status === "Inviata" ||
     (f.status === "Da inviare" && f.dataIncassoAtteso != null)
   );
-  const daIncassare = fattureInForecast.reduce((s, f) => s + f.incassoNetto, 0);
-
   // Won deals: residuo da fatturare × fattore semestre
   const wonDeals = deals.filter(d => d.status === "Won");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
   const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
   const daFatturareWon = Math.max(0, totaleVenduto - totaleFatturato) * fattore;
-
-  const totaleEntrateAttese = daIncassare + daFatturareWon;
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
@@ -191,6 +187,13 @@ async function getData() {
     });
   }
 
+  // daIncassare derivato dalla timeline mensile → coerente con la somma delle righe
+  const daIncassare = entrateAttesaPerMese.reduce((s, v) => s + v, 0);
+  const daIncassareFuoriAnno = Math.round(
+    (fattureInForecast.reduce((s, f) => s + f.incassoNetto, 0) - daIncassare) * 100
+  ) / 100;
+  const totaleEntrateAttese = daIncassare + daFatturareWon;
+
   const noteAnticipo = uscite.filter(u => u.tipo === "anticipo_soci").map(u => `${MESI_SHORT[u.mese]} ${formatEuro(u.importo)}`).join(" · ") || "nessuno";
 
   const totaleIVA2026         = uscite.filter(u => u.tipo === "iva").reduce((s, u) => s + u.importo, 0);
@@ -241,7 +244,7 @@ async function getData() {
   return {
     semestre, fattore, noteAnticipo,
     incassatoYTD, incassatoPerMese, meseCorrente,
-    daIncassare, daFatturareWon, totaleVenduto,
+    daIncassare, daIncassareFuoriAnno, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
@@ -258,7 +261,7 @@ export default async function PrevisioneAnnualePage() {
   const {
     semestre, fattore, noteAnticipo,
     incassatoYTD, meseCorrente,
-    daIncassare, daFatturareWon, totaleVenduto,
+    daIncassare, daIncassareFuoriAnno, daFatturareWon, totaleVenduto,
     totaleEntrateAttese,
     uscite,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
@@ -301,7 +304,14 @@ export default async function PrevisioneAnnualePage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note={`fatture già incassate nel ${ANNO} · netto ritenuta IRPEF`} />
-            <RigaValore label="Da incassare" value={formatEuro(Math.round(daIncassare))} color="var(--accent)" note="netto ritenuta IRPEF · Inviata + Da inviare con data attesa" />
+            <RigaValore
+              label="Da incassare"
+              value={formatEuro(Math.round(daIncassare))}
+              color="var(--accent)"
+              note={daIncassareFuoriAnno > 0
+                ? `netto ritenuta · ${formatEuro(Math.round(daIncassareFuoriAnno))} fuori ${ANNO} (esclusi dalla timeline)`
+                : "netto ritenuta IRPEF · Inviata + Da inviare con data attesa"}
+            />
             <RigaValore
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
               value={formatEuro(Math.round(daFatturareWon))}
@@ -493,13 +503,19 @@ export default async function PrevisioneAnnualePage() {
                   </td>
                 </tr>
               ))}
-              {/* Riga ottimistica finale */}
+              {/* Riga ottimistica finale: running_dic + daFatturareWon */}
               <tr style={{ borderTop: "1px solid var(--border)" }}>
                 <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--sage)" }}>Dic (ottimistico)</td>
                 <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
-                  + entrate attese {formatEuro(Math.round(totaleEntrateAttese))}
+                  {daFatturareWon > 0
+                    ? `+ ${formatEuro(Math.round(daFatturareWon))} deal Won da fatturare`
+                    : "tutti i deal Won già fatturati"}
                 </td>
-                <td></td>
+                <td>
+                  {daFatturareWon > 0 && (
+                    <span className="num" style={{ color: "#00c864" }}>+{formatEuro(Math.round(daFatturareWon))}</span>
+                  )}
+                </td>
                 <td><span className="num" style={{ color: saldoOttimistico >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>{formatEuro(Math.round(saldoOttimistico))}</span></td>
               </tr>
             </tbody>
