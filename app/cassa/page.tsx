@@ -37,6 +37,15 @@ async function getData() {
 
   const flussi: Flusso[] = [];
 
+  // Helper: data di incasso prevista per una fattura Inviata
+  // Priorità: campo Notion "Data incasso atteso" > dataInvio+30gg > oggi+30gg
+  function dataIncassoAttesaOf(f: { dataIncassoAtteso: string | null; dataInvio: string | null }, ref: Date): Date {
+    if (f.dataIncassoAtteso) return new Date(f.dataIncassoAtteso + "T00:00:00");
+    const base = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(ref);
+    base.setDate(base.getDate() + 30);
+    return base;
+  }
+
   // Entrate attese — fatture "Inviata"
   const fattureAttese = fatture.filter((f) => f.status === "Inviata");
   const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
@@ -88,11 +97,12 @@ async function getData() {
       ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
     }
   }
-  // IVA attesa da fatture Inviata — +30gg sempre (da dataInvio se presente, altrimenti da oggi)
+  // IVA attesa da fatture Inviata — usa dataIncassoAtteso se presente, altrimenti +30gg
+  // EDGE-06: se la data prevista è nel passato, usa oggi per il trimestre (evita Q già chiusi)
   for (const f of fattureAttese) {
-    const d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
-    d.setDate(d.getDate() + 30); // regola +30gg applicata in ogni caso
-    const trim = calcolaTrimestre(d.toISOString().split("T")[0]);
+    const d = dataIncassoAttesaOf(f, today);
+    const datePerTrimestre = d < today ? new Date(today) : d;
+    const trim = calcolaTrimestre(datePerTrimestre.toISOString().split("T")[0]);
     if (!trim) continue;
     const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
     ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });
@@ -180,17 +190,21 @@ async function getData() {
     }
   }
 
-  // Entrate attese: Inviata con dataInvio → incasso previsto a +30gg
+  // Entrate attese: Inviata con data prevista → incasso in timeline
+  // Usa dataIncassoAtteso se presente, altrimenti dataInvio+30gg; skip se nessun riferimento
+  const fattureSenzaData: typeof fattureAttese = [];
   for (const f of fattureAttese) {
-    if (!f.dataInvio) continue;
-    const d = new Date(f.dataInvio + "T00:00:00");
-    d.setDate(d.getDate() + 30);
+    if (!f.dataIncassoAtteso && !f.dataInvio) { fattureSenzaData.push(f); continue; }
+    const d = dataIncassoAttesaOf(f, today);
     d.setHours(0, 0, 0, 0);
     const dataEff = d < today ? new Date(today) : d;
+    const labelData = f.dataIncassoAtteso
+      ? dataEff.toLocaleDateString("it-IT")
+      : `${dataEff.toLocaleDateString("it-IT")} (+30gg)`;
     flussi.push({
       id: `entrata-${f.id}`,
       data: dataEff,
-      dataStr: `${dataEff.toLocaleDateString("it-IT")} (+30gg)`,
+      dataStr: labelData,
       label: f.nome,
       importo: f.incassoNetto,
       tipo: "entrata",
@@ -198,8 +212,7 @@ async function getData() {
     });
   }
 
-  // Inviata senza dataInvio → aggregato senza data prevista
-  const fattureSenzaData = fattureAttese.filter((f) => !f.dataInvio);
+  // Inviata senza alcuna data prevista → aggregato senza timeline
   const totaleAtteso = fattureSenzaData.reduce((s, f) => s + f.incassoNetto, 0);
 
   // Rimborsi spese aperti

@@ -15,14 +15,15 @@ export type TrimestreIVA =
 export interface Fattura {
   id: string;
   nome: string;
-  importo: number;       // imponibile (valore servizi)
-  incassoNetto: number;  // cash effettivo: importo × 1.04 × 1.02 = importo × 1.0608
-  iva22: number;         // importo × 1.04 × 0.22 (corretta, include INPS rivalsa)
-  ritenuta: number;      // importo × 1.04 × 0.20 (trattenuta dal cliente)
+  importo: number;           // imponibile (compenso senza rivalsa INPS)
+  incassoNetto: number;      // importo × 1.04 × 1.22 − importo × 0.20 = importo × 1.0688 (lordo IVA, netto ritenuta)
+  iva22: number;             // importo × 1.04 × 0.22 (IVA su base imponibile + INPS rivalsa 4%)
+  ritenuta: number;          // importo × 0.20 (solo sul compenso, DPR 600/73 art. 25)
   status: FatturaStatus;
   trimestreIVA: TrimestreIVA | null;
   dataInvio: string | null;
   dataIncasso: string | null;
+  dataIncassoAtteso: string | null; // campo opzionale Notion "Data incasso atteso" — sovrascrive regola +30gg
   fileFattura: string | null;
   cliente: string | null;
   progetto: string | null;

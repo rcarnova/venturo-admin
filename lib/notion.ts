@@ -101,14 +101,15 @@ export async function queryAll(
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 export function mapFattura(page: PageObjectResponse): Fattura {
   const p = page.properties;
-  const importo = getNumber(p, "Importo"); // imponibile (valore servizi)
+  const importo = getNumber(p, "Importo"); // imponibile (compenso senza rivalsa INPS)
   const dataInvio = getDate(p, "Data invio");
   const dataIncasso = getDate(p, "Incassata");
+  const dataIncassoAtteso = getDate(p, "Data incasso atteso"); // campo opzionale — sovrascrive +30gg
   const trimestreIVA = dataIncasso ? calcolaTrimestre(dataIncasso) : null;
-  const baseIva = importo * 1.04; // imponibile + INPS rivalsa 4%
+  const baseIva = importo * 1.04; // imponibile IVA = compenso + INPS rivalsa 4%
   const iva22 = Math.round(baseIva * 0.22 * 100) / 100;
-  const ritenuta = Math.round(importo * 0.20 * 100) / 100; // 20% del solo compenso, non sull'INPS (DPR 600/73 art. 25)
-  const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // × 1.0688
+  const ritenuta = Math.round(importo * 0.20 * 100) / 100; // 20% sul solo compenso (DPR 600/73 art. 25)
+  const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // × 1.0688 — lordo IVA, netto ritenuta
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
@@ -121,6 +122,7 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     trimestreIVA,
     dataInvio,
     dataIncasso,
+    dataIncassoAtteso,
     fileFattura: getUrl(p, "File fattura"),
     cliente: getRelationName(p, "Clienti"),
     progetto: getRelationName(p, "Progetto"),

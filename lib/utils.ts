@@ -65,12 +65,17 @@ export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
  *  + fatture emesse incassate dopo la data di riconciliazione
  *  - fatture ricevute pagate dopo la data di riconciliazione (richiede "Data pagamento" su Notion)
  */
-/** Restituisce il 15 del mese successivo alla data di pagamento fornitore */
+/** Restituisce il 15 del mese successivo alla data di pagamento fornitore.
+ *  Gestisce la proroga di Ferragosto: se cade il 15/08 → slitta al 20/08. */
 export function scadenzaRitenuta(dataRiferimento: Date): Date {
   const d = new Date(dataRiferimento);
   d.setMonth(d.getMonth() + 1);
   d.setDate(15);
   d.setHours(0, 0, 0, 0);
+  // 15 agosto = Ferragosto: proroga al 20 agosto (circolare AE n. 20/E)
+  if (d.getMonth() === 7 && d.getDate() === 15) {
+    d.setDate(20);
+  }
   return d;
 }
 

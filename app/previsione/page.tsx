@@ -148,13 +148,21 @@ async function getData() {
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of uscite) uscitePerMese[u.mese] += u.importo;
 
-  // Per mese: entrate attese da fatture Inviata con regola +30gg
+  // Per mese: entrate attese da fatture Inviata
+  // Priorità: dataIncassoAtteso (Notion) > dataInvio+30gg > oggi+30gg
   const entrateAttesaPerMese = Array(12).fill(0) as number[];
   const entrateDettaglioPerMese: { nome: string; importo: number }[][] = Array.from({ length: 12 }, () => []);
   for (const f of fatture) {
     if (f.status !== "Inviata") continue;
-    const d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
-    d.setDate(d.getDate() + 30);
+    let d: Date;
+    if (f.dataIncassoAtteso) {
+      d = new Date(f.dataIncassoAtteso + "T00:00:00");
+    } else {
+      d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
+      d.setDate(d.getDate() + 30);
+    }
+    // Se la data prevista è nel passato, posiziona nel mese corrente
+    if (d < today) d = new Date(today);
     if (d.getFullYear() !== ANNO) continue;
     const m = d.getMonth();
     entrateAttesaPerMese[m] += f.incassoNetto;

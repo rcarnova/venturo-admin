@@ -46,9 +46,13 @@ async function getDashboardData() {
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
   const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.incassoNetto, 0);
-  const totalePagato = fatture
-    .filter((f) => f.status === "Pagata")
-    .reduce((s, f) => s + f.incassoNetto, 0);
+  const fattureInviateMesiExtra = fattureInviate.filter(f => {
+    const anno = (f.dataInvio ?? f.createdAt).slice(0, 4);
+    return anno !== String(ANNO_CORRENTE);
+  }).length;
+  const fatturePagate = fatture.filter((f) => f.status === "Pagata");
+  const totalePagato = fatturePagate.reduce((s, f) => s + f.incassoNetto, 0);
+  const totaleIVAPagata = fatturePagate.reduce((s, f) => s + f.iva22, 0);
   const totaleSpese = fattureRicevute
     .filter((f) => f.status === "Pagata")
     .reduce((s, f) => s + f.importo, 0);
@@ -113,7 +117,7 @@ async function getDashboardData() {
 
   return {
     alerts,
-    stats: { saldoAttuale, totaleDaIncassare, totalePagato, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
+    stats: { saldoAttuale, totaleDaIncassare, fattureInviateMesiExtra, totalePagato, totaleIVAPagata, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
     scadenzeCalcolate,
     fornitoriDaPagare,
     prossimaScadenza,
@@ -123,6 +127,7 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const { alerts, stats, scadenzeCalcolate, fornitoriDaPagare, prossimaScadenza, pipeline } = await getDashboardData();
+  const ivaImplicita = Math.round(stats.totaleIVAPagata);
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     day: "numeric",
@@ -260,11 +265,13 @@ export default async function DashboardPage() {
             label="Da incassare"
             value={formatEuro(stats.totaleDaIncassare)}
             color="var(--accent)"
+            note={stats.fattureInviateMesiExtra > 0 ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.` : "lordo IVA · fatture inviate"}
           />
           <StatCard
             label="Incassato"
             value={formatEuro(stats.totalePagato)}
             color="#00c864"
+            note={`di cui ${formatEuro(ivaImplicita)} IVA da versare`}
           />
           <StatCard
             label="Fornitori da pagare"
@@ -401,7 +408,7 @@ export default async function DashboardPage() {
                 <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontFamily: "var(--font-mono)" }}>
                   {formatEuro(s.totaleIVA)} netta
                 </span>
-                <StatusBadgeInline status={s.versata ? "Versata" : "Da versare"} />
+                <StatusBadgeInline status={s.versata ? "Presunta" : "Da versare"} />
               </div>
             ))}
           </div>
@@ -414,7 +421,7 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
+function StatCard({ label, value, color, note }: { label: string; value: string; color: string; note?: string }) {
   return (
     <div className="stat-card">
       <div
@@ -435,13 +442,18 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       >
         {value}
       </div>
+      {note && (
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
+          {note}
+        </div>
+      )}
     </div>
   );
 }
 
 function StatusBadgeInline({ status }: { status: string }) {
   const map: Record<string, string> = {
-    Versata: "badge-success",
+    Presunta: "badge-neutral",
     "Da versare": "badge-warning",
   };
   return <span className={`badge ${map[status] ?? "badge-neutral"}`}>{status}</span>;
