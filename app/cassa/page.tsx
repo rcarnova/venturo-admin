@@ -263,23 +263,25 @@ export default async function CassaPage() {
       ]} />
 
       {/* Cards di sintesi */}
-      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
-        <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
-        <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" />
-        <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" />
-        <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note="fatture inviate" />
-        <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" tier="reale" />
+        <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" tier="reale" />
+        <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" tier="reale" />
+        <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note="fatture inviate" tier="impegno" />
+        <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" tier="impegno" />
         <SaldoCard
           label="Saldo minimo garantito"
           value={formatEuro(saldoMinimo)}
           color={(saldoMinimo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoMinimo + FIDO_BANCARIO) < 2000 ? "#ffb400" : "var(--text)"}
           note={`con fido: ${formatEuro(saldoMinimo + FIDO_BANCARIO)}`}
+          tier="impegno"
         />
         <SaldoCard
-          label="Saldo ottimistico"
-          value={formatEuro(saldoOttimistico)}
+          label="Scenario ottimistico"
+          value={`~${formatEuro(saldoOttimistico)}`}
           color="var(--accent)"
           note="se incassi tutto"
+          tier="scenario"
         />
         <SaldoCard
           label="Mutuo residuo"
@@ -288,8 +290,13 @@ export default async function CassaPage() {
           note={`${MUTUO.nRateRimanenti} rate · €${MUTUO.importoRata.toFixed(2)}/mese`}
         />
         {totRimborsi > 0 && (
-          <SaldoCard label="Rimborsi aperti" value={formatEuro(totRimborsi)} color="#ffb400" note="non inclusi nelle uscite" />
+          <SaldoCard label="Rimborsi aperti" value={formatEuro(totRimborsi)} color="#ffb400" note="non inclusi nelle uscite" tier="impegno" />
         )}
+      </div>
+      <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginBottom: "1.5rem" }}>
+        <span><span style={{ color: "#00c864" }}>●</span> Reale — dati certi</span>
+        <span><span style={{ color: "var(--accent)" }}>●</span> Impegni — obbligazioni contratte</span>
+        <span><span style={{ color: "#ffb400" }}>●</span> Scenario — simulazione</span>
       </div>
 
       {alertSaldo && (
@@ -315,9 +322,16 @@ export default async function CassaPage() {
         </div>
       )}
 
-      {/* Timeline uscite */}
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
-        Timeline uscite nei prossimi 90 giorni
+      {/* Timeline flussi */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Proiezione flussi — prossimi 90 giorni
+        </div>
+        <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+        <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)" }}>
+          <span style={{ borderLeft: "2px solid rgba(0,200,100,0.5)", paddingLeft: "0.35rem" }}>incasso stimato</span>
+          <span style={{ borderLeft: "2px solid rgba(255,60,60,0.4)", paddingLeft: "0.35rem" }}>uscita certa</span>
+        </div>
       </div>
 
       {steps.length === 0 ? (
@@ -346,17 +360,20 @@ export default async function CassaPage() {
                 <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
               {steps.map((s) => (
-                <tr key={s.id} style={s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } : {}}>
+                <tr key={s.id} style={
+                  s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } :
+                  s.importo > 0 ? { background: "rgba(0,200,100,0.025)", boxShadow: "inset 2px 0 0 rgba(0,200,100,0.35)" } : {}
+                }>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
                     <span className={`badge ${s.tipo === "entrata" ? "badge-success" : s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : s.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "entrata" ? "Incasso atteso" : s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
+                      {s.tipo === "entrata" ? "~Incasso atteso" : s.tipo === "iva" ? (s.certo ? "IVA" : "~IVA stimata") : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
                     </span>
                   </td>
                   <td>
                     <span className="num" style={{ color: s.importo > 0 ? "#00c864" : "#ff4444" }}>
-                      {s.importo > 0 ? "+" : "−"}{formatEuro(Math.abs(s.importo))}
+                      {s.importo > 0 ? "~+" : "−"}{formatEuro(Math.abs(s.importo))}
                     </span>
                   </td>
                   <td>
@@ -375,9 +392,11 @@ export default async function CassaPage() {
   );
 }
 
-function SaldoCard({ label, value, color, note }: { label: string; value: string; color: string; note?: string }) {
+function SaldoCard({ label, value, color, note, tier }: { label: string; value: string; color: string; note?: string; tier?: "reale" | "impegno" | "scenario" }) {
+  const tierBorder: Record<string, string> = { reale: "#00c864", impegno: "var(--accent)", scenario: "#ffb400" };
+  const borderLeft = tier ? `2px solid ${tierBorder[tier]}` : undefined;
   return (
-    <div className="stat-card">
+    <div className="stat-card" style={borderLeft ? { borderLeft } : {}}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
         {label}
       </div>

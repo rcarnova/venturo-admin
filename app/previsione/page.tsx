@@ -299,11 +299,26 @@ export default async function PrevisioneAnnualePage() {
       <div className="grid-2col" style={{ marginBottom: "1.75rem" }}>
         {/* Entrate */}
         <div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-            Entrate
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase" }}>
+              Entrate
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)" }}>
+              <span style={{ color: "#00c864" }}>● reale</span>
+              <span style={{ color: "var(--accent)" }}>● impegno</span>
+              <span style={{ color: "#ffb400" }}>~ scenario</span>
+            </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#00c864", display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Reale</span>
+            </div>
             <RigaValore label="Incassato YTD" value={formatEuro(incassatoYTD)} color="var(--sage)" note={`fatture già incassate nel ${ANNO} · netto ritenuta IRPEF`} />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--accent)", display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Impegni</span>
+            </div>
             <RigaValore
               label="Da incassare"
               value={formatEuro(Math.round(daIncassare))}
@@ -312,9 +327,13 @@ export default async function PrevisioneAnnualePage() {
                 ? `netto ritenuta · ${formatEuro(Math.round(daIncassareFuoriAnno))} fuori ${ANNO} (esclusi dalla timeline)`
                 : "netto ritenuta IRPEF · Inviata + Da inviare con data attesa"}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.25rem" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "#ffb400", letterSpacing: "0.05em" }}>~</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Scenario</span>
+            </div>
             <RigaValore
               label={`Venduto da fatturare ×${Math.round(fattore * 100)}%`}
-              value={formatEuro(Math.round(daFatturareWon))}
+              value={`~${formatEuro(Math.round(daFatturareWon))}`}
               color={semestre === 1 ? "var(--text)" : "#ffb400"}
               note={`imponibile · su ${formatEuro(totaleVenduto)} totale Won`}
             />
@@ -429,7 +448,7 @@ export default async function PrevisioneAnnualePage() {
             {incassatoH2 > 0 && (
               <RigaValore label="Già incassato H2" value={formatEuro(Math.round(incassatoH2))} color="var(--sage)" />
             )}
-            <RigaValore label="Entrate attese" value={formatEuro(Math.round(entrateAttesaH2))} color="var(--accent)" note="+30gg da dataInvio · fatture Inviata" />
+            <RigaValore label="Entrate attese" value={formatEuro(Math.round(entrateAttesaH2))} color="var(--accent)" note="● impegni — +30gg da dataInvio · fatture Inviata" />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
               <RigaValore label="Uscite pianificate H2" value={formatEuro(Math.round(usciteH2))} color="#ff4444" />
             </div>
@@ -503,9 +522,9 @@ export default async function PrevisioneAnnualePage() {
                   </td>
                 </tr>
               ))}
-              {/* Riga ottimistica finale: running_dic + daFatturareWon */}
-              <tr style={{ borderTop: "1px solid var(--border)" }}>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--sage)" }}>Dic (ottimistico)</td>
+              {/* Riga scenario ottimistico finale: running_dic + daFatturareWon */}
+              <tr style={{ borderTop: "1px solid var(--border)", background: "rgba(255,180,0,0.02)" }}>
+                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#ffb400" }}>~ Scenario ottimistico</td>
                 <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
                   {daFatturareWon > 0
                     ? `+ ${formatEuro(Math.round(daFatturareWon))} deal Won da fatturare`
@@ -513,10 +532,10 @@ export default async function PrevisioneAnnualePage() {
                 </td>
                 <td>
                   {daFatturareWon > 0 && (
-                    <span className="num" style={{ color: "#00c864" }}>+{formatEuro(Math.round(daFatturareWon))}</span>
+                    <span className="num" style={{ color: "#ffb400" }}>~+{formatEuro(Math.round(daFatturareWon))}</span>
                   )}
                 </td>
-                <td><span className="num" style={{ color: saldoOttimistico >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>{formatEuro(Math.round(saldoOttimistico))}</span></td>
+                <td><span className="num" style={{ color: saldoOttimistico >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>~{formatEuro(Math.round(saldoOttimistico))}</span></td>
               </tr>
             </tbody>
           </table>

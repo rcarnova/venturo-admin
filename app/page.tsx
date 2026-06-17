@@ -236,73 +236,46 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <section style={{ marginBottom: "2.5rem" }}>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.65rem",
-            color: "var(--muted)",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Panoramica finanziaria
+        {/* CONSUNTIVO */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#00c864", display: "inline-block", flexShrink: 0 }} />
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase" }}>Consuntivo</div>
         </div>
-        <div
-          className="stat-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: "0.75rem",
-          }}
-        >
-          <StatCard
-            label="Saldo in banca"
-            value={formatEuro(stats.saldoAttuale)}
-            color="var(--text)"
-          />
-          <StatCard
-            label="Da incassare"
-            value={formatEuro(stats.totaleDaIncassare)}
-            color="var(--accent)"
-            note={stats.fattureInviateMesiExtra > 0 ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.` : "lordo IVA · fatture inviate"}
-          />
-          <StatCard
-            label="Incassato"
-            value={formatEuro(stats.totalePagato)}
-            color="#00c864"
-            note={`di cui ${formatEuro(ivaImplicita)} IVA da versare`}
-          />
-          <StatCard
-            label="Fornitori da pagare"
-            value={formatEuro(stats.totaleFornitori)}
-            color={stats.totaleFornitori > 0 ? "#ffb400" : "var(--muted)"}
-          />
-          <StatCard
-            label="Fatture fornitori pagate"
-            value={formatEuro(stats.totaleSpese)}
-            color="var(--muted)"
-          />
-          <StatCard
-            label="Rimborsi aperti"
-            value={formatEuro(stats.totaleRimborsi)}
-            color={stats.totaleRimborsi > 0 ? "#ffb400" : "var(--muted)"}
-          />
+        <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "1.25rem" }}>
+          <StatCard label="Saldo in banca" value={formatEuro(stats.saldoAttuale)} color="var(--text)" tier="reale" />
+          <StatCard label="Incassato" value={formatEuro(stats.totalePagato)} color="#00c864" note={`di cui ${formatEuro(ivaImplicita)} IVA da versare`} tier="reale" />
+          <StatCard label="Fatture fornitori pagate" value={formatEuro(stats.totaleSpese)} color="var(--muted)" tier="reale" />
+        </div>
+
+        {/* IMPEGNI */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent)", display: "inline-block", flexShrink: 0 }} />
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase" }}>Impegni</div>
+        </div>
+        <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
+          <StatCard label="Da incassare" value={formatEuro(stats.totaleDaIncassare)} color="var(--accent)" note={stats.fattureInviateMesiExtra > 0 ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.` : "lordo IVA · fatture inviate"} tier="impegno" />
+          <StatCard label="Fornitori da pagare" value={formatEuro(stats.totaleFornitori)} color={stats.totaleFornitori > 0 ? "#ffb400" : "var(--muted)"} tier="impegno" />
+          <StatCard label="Rimborsi aperti" value={formatEuro(stats.totaleRimborsi)} color={stats.totaleRimborsi > 0 ? "#ffb400" : "var(--muted)"} tier="impegno" />
           {prossimaScadenza && (
-            <StatCard
-              label={`IVA ${prossimaScadenza.trimestre} · scad. ${prossimaScadenza.scadenzaStr}`}
-              value={formatEuro(stats.ivaProximaScadenza)}
-              color={isUrgent(prossimaScadenza.scadenzaIso, 30) ? "#ffb400" : "var(--accent)"}
-            />
+            <StatCard label={`IVA ${prossimaScadenza.trimestre} · scad. ${prossimaScadenza.scadenzaStr}`} value={formatEuro(stats.ivaProximaScadenza)} color={isUrgent(prossimaScadenza.scadenzaIso, 30) ? "#ffb400" : "var(--accent)"} tier="impegno" />
           )}
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginTop: "0.75rem" }}>
+          <span><span style={{ color: "#00c864" }}>●</span> Consuntivo — dati certi</span>
+          <span><span style={{ color: "var(--accent)" }}>●</span> Impegni — obbligazioni contratte</span>
+          <span><span style={{ color: "#ffb400" }}>●</span> Scenario — simulazione pipeline</span>
         </div>
       </section>
 
       {/* Pipeline */}
       <section style={{ marginBottom: "2.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Sales Pipeline
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ffb400", display: "inline-block", flexShrink: 0 }} />
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Sales Pipeline</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "#ffb400" }}>· scenario</span>
           </div>
           <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
           <Link href="/pipeline" style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--accent)", textDecoration: "none", letterSpacing: "0.04em" }}>
@@ -421,9 +394,11 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, color, note }: { label: string; value: string; color: string; note?: string }) {
+function StatCard({ label, value, color, note, tier }: { label: string; value: string; color: string; note?: string; tier?: "reale" | "impegno" | "scenario" }) {
+  const tierBorder: Record<string, string> = { reale: "#00c864", impegno: "var(--accent)", scenario: "#ffb400" };
+  const borderLeft = tier ? `2px solid ${tierBorder[tier]}` : undefined;
   return (
-    <div className="stat-card">
+    <div className="stat-card" style={borderLeft ? { borderLeft } : {}}>
       <div
         style={{
           fontFamily: "var(--font-mono)",
