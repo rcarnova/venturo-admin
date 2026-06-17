@@ -104,18 +104,11 @@ async function getDashboardData() {
 
   // Pipeline: venduto vs fatturato
   const deals = pipelinePages.map(mapDeal);
-  const fatturePerProgetto = new Map<string, number>();
-  for (const f of fatture) {
-    if (!f.progetto) continue;
-    fatturePerProgetto.set(f.progetto, (fatturePerProgetto.get(f.progetto) ?? 0) + f.importo);
-  }
   const wonDeals = deals.filter((d) => d.status === "Won");
   const openDeals = deals.filter((d) => d.status === "Open");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const totaleFatturatoWon = wonDeals.reduce((s, d) => {
-    return s + (d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0);
-  }, 0);
-  const totaleDaFatturare = Math.max(0, totaleVenduto - totaleFatturatoWon);
+  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
+  const totaleDaFatturare = Math.max(0, totaleVenduto - totaleFatturato);
   const totaleOpenPipeline = openDeals.reduce((s, d) => s + d.valore, 0);
 
   return {
@@ -124,7 +117,7 @@ async function getDashboardData() {
     scadenzeCalcolate,
     fornitoriDaPagare,
     prossimaScadenza,
-    pipeline: { totaleVenduto, totaleFatturatoWon, totaleDaFatturare, totaleOpenPipeline, nWon: wonDeals.length, nOpen: openDeals.length },
+    pipeline: { totaleVenduto, totaleFatturato, totaleDaFatturare, totaleOpenPipeline, nWon: wonDeals.length, nOpen: openDeals.length },
   };
 }
 
@@ -311,7 +304,7 @@ export default async function DashboardPage() {
         </div>
         <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "0.75rem" }}>
           <StatCard label="Venduto (Won)" value={formatEuro(pipeline.totaleVenduto)} color="var(--sage)" />
-          <StatCard label="Fatturato" value={formatEuro(pipeline.totaleFatturatoWon)} color="var(--text)" />
+          <StatCard label="Fatturato" value={formatEuro(pipeline.totaleFatturato)} color="var(--text)" />
           <StatCard
             label="Da fatturare"
             value={formatEuro(pipeline.totaleDaFatturare)}
@@ -324,13 +317,13 @@ export default async function DashboardPage() {
             <div style={{ height: "3px", background: "var(--surface-3)", borderRadius: "2px", overflow: "hidden" }}>
               <div style={{
                 height: "100%",
-                width: `${Math.min(100, Math.round((pipeline.totaleFatturatoWon / pipeline.totaleVenduto) * 100))}%`,
+                width: `${Math.min(100, Math.round((pipeline.totaleFatturato / pipeline.totaleVenduto) * 100))}%`,
                 background: pipeline.totaleDaFatturare <= 0 ? "var(--sage)" : "var(--accent)",
                 borderRadius: "2px",
               }} />
             </div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-              {Math.min(100, Math.round((pipeline.totaleFatturatoWon / pipeline.totaleVenduto) * 100))}% del venduto fatturato · {pipeline.nWon} deal vinti · {pipeline.nOpen} aperti
+              {Math.min(100, Math.round((pipeline.totaleFatturato / pipeline.totaleVenduto) * 100))}% del venduto fatturato · {pipeline.nWon} deal vinti · {pipeline.nOpen} aperti
             </div>
           </div>
         )}

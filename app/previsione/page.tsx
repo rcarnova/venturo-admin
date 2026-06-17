@@ -59,16 +59,10 @@ async function getData() {
     .reduce((s, f) => s + f.incassoNetto, 0);
 
   // Won deals: residuo da fatturare × fattore semestre
-  const fatturePerProgetto = new Map<string, number>();
-  for (const f of fatture) {
-    if (f.progetto) fatturePerProgetto.set(f.progetto, (fatturePerProgetto.get(f.progetto) ?? 0) + f.importo);
-  }
   const wonDeals = deals.filter(d => d.status === "Won");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const daFatturareWon = wonDeals.reduce((s, d) => {
-    const fatturato = d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0;
-    return s + Math.max(0, d.valore - fatturato) * fattore;
-  }, 0);
+  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
+  const daFatturareWon = Math.max(0, totaleVenduto - totaleFatturato) * fattore;
 
   const totaleEntrateAttese = daIncassare + daFatturareWon;
 
