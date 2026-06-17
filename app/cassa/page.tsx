@@ -37,9 +37,9 @@ async function getData() {
 
   const flussi: Flusso[] = [];
 
-  // Entrate attese — fatture "Inviata" (certe ma senza data)
+  // Entrate attese — fatture "Inviata"
   const fattureAttese = fatture.filter((f) => f.status === "Inviata");
-  const totaleAtteso = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
+  const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
   // Uscite certe — fatture ricevute da pagare (Ricevuta) o scadute (In ritardo)
   for (const f of ricevute) {
@@ -169,6 +169,28 @@ async function getData() {
     }
   }
 
+  // Entrate attese: Inviata con dataInvio → incasso previsto a +30gg
+  for (const f of fattureAttese) {
+    if (!f.dataInvio) continue;
+    const d = new Date(f.dataInvio + "T00:00:00");
+    d.setDate(d.getDate() + 30);
+    d.setHours(0, 0, 0, 0);
+    const dataEff = d < today ? new Date(today) : d;
+    flussi.push({
+      id: `entrata-${f.id}`,
+      data: dataEff,
+      dataStr: `${dataEff.toLocaleDateString("it-IT")} (+30gg)`,
+      label: f.nome,
+      importo: f.incassoNetto,
+      tipo: "entrata",
+      certo: false,
+    });
+  }
+
+  // Inviata senza dataInvio → aggregato senza data prevista
+  const fattureSenzaData = fattureAttese.filter((f) => !f.dataInvio);
+  const totaleAtteso = fattureSenzaData.reduce((s, f) => s + f.incassoNetto, 0);
+
   // Rimborsi spese aperti
   const totRimborsi = note.filter((n) => n.statusRimborso === "Da rimborsare").reduce((s, n) => s + n.importo, 0);
 
@@ -188,11 +210,11 @@ async function getData() {
   // Flussi nei prossimi 90 giorni — IVA sempre inclusa perché scadenza fissa
   const flussi90 = flussi.filter((f) => f.data <= in90 || f.tipo === "iva");
 
-  return { flussi90, flussiTutti: flussi, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE };
+  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE };
 }
 
 export default async function CassaPage() {
-  const { flussi90, fattureAttese, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale } = await getData();
+  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale } = await getData();
 
   const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
   const liquiditaTotale = saldoAttuale + FIDO_BANCARIO;
@@ -221,7 +243,7 @@ export default async function CassaPage() {
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
         <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" />
         <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" />
-        <SaldoCard label="Entrate attese" value={formatEuro(totaleAtteso)} color="#00c864" note={`${fattureAttese.length} fatture inviata`} />
+        <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note="fatture inviate" />
         <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" />
         <SaldoCard
           label="Saldo minimo garantito"
@@ -256,7 +278,7 @@ export default async function CassaPage() {
       {fattureAttese.length > 0 && (
         <div style={{ marginBottom: "2rem" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
-            Entrate attese — non ancora incassate
+            Entrate attese — senza data di invio (non in timeline)
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
             {fattureAttese.map((f) => (
@@ -304,11 +326,15 @@ export default async function CassaPage() {
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
-                    <span className={`badge ${s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : s.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
-                      {s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
+                    <span className={`badge ${s.tipo === "entrata" ? "badge-success" : s.tipo === "iva" ? "badge-error" : s.tipo === "ritenuta" ? "badge-error" : s.tipo === "mutuo" ? "badge-neutral" : s.tipo === "anticipo_soci" ? "badge-accent" : s.tipo === "abbonamento" ? "badge-neutral" : "badge-warning"}`} style={{ fontSize: "0.58rem" }}>
+                      {s.tipo === "entrata" ? "Incasso atteso" : s.tipo === "iva" ? "IVA" : s.tipo === "ritenuta" ? "Ritenuta" : s.tipo === "mutuo" ? "Mutuo" : s.tipo === "anticipo_soci" ? "Anticipo" : s.tipo === "abbonamento" ? "Ricorrente" : "Fattura"}
                     </span>
                   </td>
-                  <td><span className="num" style={{ color: "#ff4444" }}>{formatEuro(Math.abs(s.importo))}</span></td>
+                  <td>
+                    <span className="num" style={{ color: s.importo > 0 ? "#00c864" : "#ff4444" }}>
+                      {s.importo > 0 ? "+" : "−"}{formatEuro(Math.abs(s.importo))}
+                    </span>
+                  </td>
                   <td>
                     <span className="num" style={{ color: s.saldo < 0 ? "#ff4444" : s.saldo < 2000 ? "#ffb400" : "var(--text)", fontWeight: 600 }}>
                       {formatEuro(s.saldo)}
