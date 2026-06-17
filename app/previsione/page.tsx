@@ -61,10 +61,15 @@ async function getData() {
     f.status === "Inviata" ||
     (f.status === "Da inviare" && f.dataIncassoAtteso != null)
   );
-  // Won deals: residuo da fatturare × fattore semestre
+  // Won deals: residuo da fatturare × fattore semestre — conta solo fatture collegate a deal Won
   const wonDeals = deals.filter(d => d.status === "Won");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
+  const fatturePerProgetto = new Map<string, number>();
+  for (const f of fatture) {
+    if (!f.progetto) continue;
+    fatturePerProgetto.set(f.progetto, (fatturePerProgetto.get(f.progetto) ?? 0) + f.importo);
+  }
+  const totaleFatturato = wonDeals.reduce((s, d) => s + (d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0), 0);
   const daFatturareWon = Math.max(0, totaleVenduto - totaleFatturato) * fattore;
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
