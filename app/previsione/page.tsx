@@ -171,6 +171,21 @@ async function getData() {
   const totaleAbbonamenti2026 = uscite.filter(u => u.tipo === "abbonamento").reduce((s, u) => s + u.importo, 0);
   const totaleUscite          = uscite.reduce((s, u) => s + u.importo, 0);
 
+  // Riepilogo per semestre
+  const incassatoH1 = incassatoPerMese.slice(0, 6).reduce((s, v) => s + v, 0);
+  const incassatoH2 = incassatoPerMese.slice(6).reduce((s, v) => s + v, 0);
+  const entrateAttesaH1 = entrateAttesaPerMese.slice(0, 6).reduce((s, v) => s + v, 0);
+  const entrateAttesaH2 = entrateAttesaPerMese.slice(6).reduce((s, v) => s + v, 0);
+  const usciteH1 = uscitePerMese.slice(0, 6).reduce((s, v) => s + v, 0);
+  const usciteH2 = uscitePerMese.slice(6).reduce((s, v) => s + v, 0);
+  const ivaH1    = uscite.filter(u => u.tipo === "iva"          && u.mese < 6).reduce((s, u) => s + u.importo, 0);
+  const ivaH2    = uscite.filter(u => u.tipo === "iva"          && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+  const mutuoH2  = uscite.filter(u => u.tipo === "mutuo"        && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+  const antiH2   = uscite.filter(u => u.tipo === "anticipo_soci"&& u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+  const fornH2   = uscite.filter(u => u.tipo === "fornitore"    && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+  const abbH2    = uscite.filter(u => u.tipo === "abbonamento"  && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+  const ritH2    = uscite.filter(u => u.tipo === "ritenuta"     && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
+
   const saldoConservativo  = SALDO_INIZIALE - totaleUscite;
   const saldoOttimistico   = SALDO_INIZIALE + totaleEntrateAttese - totaleUscite;
 
@@ -202,6 +217,8 @@ async function getData() {
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
+    incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
+    usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
     nWon: wonDeals.length,
     saldoAttuale: SALDO_INIZIALE,
   };
@@ -217,6 +234,8 @@ export default async function PrevisioneAnnualePage() {
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
+    incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
+    usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
     nWon,
     saldoAttuale,
   } = await getData();
@@ -332,6 +351,57 @@ export default async function PrevisioneAnnualePage() {
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
             + entrate attese ({formatEuro(Math.round(totaleEntrateAttese))})
+          </div>
+        </div>
+      </div>
+
+      {/* Riepilogo per semestre */}
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+        Riepilogo per semestre
+      </div>
+      <div className="grid-2col" style={{ marginBottom: "2rem" }}>
+        {/* H1 */}
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", padding: "1rem 1.25rem" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            1° Semestre — Gen → Giu
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+            <RigaValore label="Incassato" value={formatEuro(Math.round(incassatoH1))} color="var(--sage)" note="netto ritenuta · fatture pagate H1" />
+            {entrateAttesaH1 > 0 && (
+              <RigaValore label="Entrate attese (in corso)" value={formatEuro(Math.round(entrateAttesaH1))} color="var(--accent)" note="+30gg da dataInvio · mese corrente" />
+            )}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
+              <RigaValore label="Uscite pianificate H1" value={formatEuro(Math.round(usciteH1))} color="#ff4444" />
+            </div>
+            {ivaH1 > 0 && <RigaValore label="  di cui IVA" value={formatEuro(Math.round(ivaH1))} color="var(--muted)" note="versamenti trimestrali Q1–Q2" />}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
+              <RigaValore label="Netto H1" value={formatEuro(Math.round(incassatoH1 + entrateAttesaH1 - usciteH1))} color={(incassatoH1 + entrateAttesaH1 - usciteH1) >= 0 ? "var(--sage)" : "#ff4444"} bold />
+            </div>
+          </div>
+        </div>
+
+        {/* H2 */}
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", padding: "1rem 1.25rem" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            2° Semestre — Lug → Dic
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+            {incassatoH2 > 0 && (
+              <RigaValore label="Già incassato H2" value={formatEuro(Math.round(incassatoH2))} color="var(--sage)" />
+            )}
+            <RigaValore label="Entrate attese" value={formatEuro(Math.round(entrateAttesaH2))} color="var(--accent)" note="+30gg da dataInvio · fatture Inviata" />
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
+              <RigaValore label="Uscite pianificate H2" value={formatEuro(Math.round(usciteH2))} color="#ff4444" />
+            </div>
+            {ivaH2 > 0    && <RigaValore label="  di cui IVA Q3" value={formatEuro(Math.round(ivaH2))}    color="var(--muted)" />}
+            {mutuoH2 > 0  && <RigaValore label="  di cui Mutuo"  value={formatEuro(Math.round(mutuoH2))}  color="var(--muted)" />}
+            {antiH2 > 0   && <RigaValore label="  di cui Anticipo soci" value={formatEuro(Math.round(antiH2))} color="var(--muted)" />}
+            {fornH2 > 0   && <RigaValore label="  di cui Fornitori" value={formatEuro(Math.round(fornH2))} color="var(--muted)" />}
+            {abbH2 > 0    && <RigaValore label="  di cui Ricorrenti" value={formatEuro(Math.round(abbH2))} color="var(--muted)" />}
+            {ritH2 > 0    && <RigaValore label="  di cui Ritenute" value={formatEuro(Math.round(ritH2))}   color="var(--muted)" />}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
+              <RigaValore label="Netto H2" value={formatEuro(Math.round(incassatoH2 + entrateAttesaH2 - usciteH2))} color={(incassatoH2 + entrateAttesaH2 - usciteH2) >= 0 ? "var(--sage)" : "#ff4444"} bold />
+            </div>
           </div>
         </div>
       </div>
