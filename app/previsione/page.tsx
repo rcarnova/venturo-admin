@@ -20,6 +20,15 @@ type Uscita = {
   tipo: "iva" | "mutuo" | "fornitore" | "anticipo_soci" | "ritenuta" | "abbonamento";
 };
 
+type EntrataAttesa = {
+  data: Date;
+  mese: number;
+  nome: string;
+  importo: number;
+  status: string;
+  stimata: boolean; // true = data +30gg stimata, false = dataIncassoAtteso da Notion
+};
+
 async function getData() {
   const [fatturePages, ricevutePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
@@ -158,8 +167,10 @@ async function getData() {
   // Priorità: dataIncassoAtteso (Notion) > dataInvio+30gg > oggi+30gg
   const entrateAttesaPerMese = Array(12).fill(0) as number[];
   const entrateDettaglioPerMese: { nome: string; importo: number }[][] = Array.from({ length: 12 }, () => []);
+  const entrateAttesePianificate: EntrataAttesa[] = [];
   for (const f of fattureInForecast) {
     let d: Date;
+    const stimata = !f.dataIncassoAtteso;
     if (f.dataIncassoAtteso) {
       d = new Date(f.dataIncassoAtteso + "T00:00:00");
     } else {
@@ -175,7 +186,9 @@ async function getData() {
       nome: f.status === "Da inviare" ? `⚑ ${f.nome}` : f.nome,
       importo: f.incassoNetto,
     });
+    entrateAttesePianificate.push({ data: d, mese: m, nome: f.nome, importo: f.incassoNetto, status: f.status, stimata });
   }
+  entrateAttesePianificate.sort((a, b) => a.data.getTime() - b.data.getTime());
 
   // daIncassare derivato dalla timeline mensile → coerente con la somma delle righe
   const daIncassare = entrateAttesaPerMese.reduce((s, v) => s + v, 0);
@@ -236,7 +249,7 @@ async function getData() {
     incassatoYTD, incassatoPerMese, meseCorrente,
     daIncassare, daIncassareFuoriAnno,
     totaleEntrateAttese,
-    uscite,
+    uscite, entrateAttesePianificate,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
@@ -252,7 +265,7 @@ export default async function PrevisioneAnnualePage() {
     incassatoYTD, meseCorrente,
     daIncassare, daIncassareFuoriAnno,
     totaleEntrateAttese,
-    uscite,
+    uscite, entrateAttesePianificate,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
     saldoConservativo, saldoOttimistico,
     righe,
@@ -492,6 +505,48 @@ export default async function PrevisioneAnnualePage() {
           </table>
         </div>
       </div>
+
+      {/* Entrate attese pianificate */}
+      {entrateAttesePianificate.length > 0 && (
+        <>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            Entrate attese — fatture in corso
+          </div>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden", marginBottom: "2rem" }}>
+            <div className="table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Data prevista</th>
+                    <th>Fattura</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Importo netto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entrateAttesePianificate.map((e, i) => (
+                    <tr key={i}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                        <span style={{ color: "var(--text)" }}>{e.data.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}</span>
+                        {e.stimata && <span style={{ color: "var(--muted-2)", fontSize: "0.6rem", marginLeft: "0.4rem" }}>~stim.</span>}
+                      </td>
+                      <td style={{ fontWeight: 500, fontSize: "0.82rem" }}>{e.nome}</td>
+                      <td>
+                        <span className={`badge ${e.status === "Inviata" ? "badge-warning" : "badge-neutral"}`} style={{ fontSize: "0.58rem" }}>
+                          {e.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span className="num" style={{ color: "#00c864", fontWeight: 600 }}>+{formatEuro(Math.round(e.importo))}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Scadenze chiave */}
       {uscite.length > 0 && (
