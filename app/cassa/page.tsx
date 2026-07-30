@@ -46,8 +46,11 @@ async function getData() {
     return base;
   }
 
-  // Entrate attese — fatture "Inviata"
-  const fattureAttese = fatture.filter((f) => f.status === "Inviata");
+  // Entrate attese — "Inviata" + "Da inviare" con dataIncassoAtteso (coerente con previsione)
+  const fattureAttese = fatture.filter((f) =>
+    f.status === "Inviata" ||
+    (f.status === "Da inviare" && f.dataIncassoAtteso != null)
+  );
   const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
   // Uscite certe — fatture ricevute da pagare (Ricevuta) o scadute (In ritardo)
@@ -190,8 +193,8 @@ async function getData() {
     }
   }
 
-  // Entrate attese: Inviata con data prevista → incasso in timeline
-  // Usa dataIncassoAtteso se presente, altrimenti dataInvio+30gg; skip se nessun riferimento
+  // Entrate attese: in timeline se hanno una data (dataIncassoAtteso o dataInvio)
+  // "Da inviare" con dataIncassoAtteso ha sempre la data → sempre in timeline
   const fattureSenzaData: typeof fattureAttese = [];
   for (const f of fattureAttese) {
     if (!f.dataIncassoAtteso && !f.dataInvio) { fattureSenzaData.push(f); continue; }
@@ -201,11 +204,12 @@ async function getData() {
     const labelData = f.dataIncassoAtteso
       ? dataEff.toLocaleDateString("it-IT")
       : `${dataEff.toLocaleDateString("it-IT")} (+30gg)`;
+    const nomeLabel = f.status === "Da inviare" ? `⚑ ${f.nome}` : f.nome;
     flussi.push({
       id: `entrata-${f.id}`,
       data: dataEff,
       dataStr: labelData,
-      label: f.nome,
+      label: nomeLabel,
       importo: f.incassoNetto,
       tipo: "entrata",
       certo: false,
