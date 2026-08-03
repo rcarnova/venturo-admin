@@ -1,6 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { COSTI_RICORRENTI } from "@/lib/config";
+import { COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
 import type { TrimestreIVA } from "@/lib/types";
 
@@ -36,7 +36,9 @@ async function getData() {
     const ivaCredito          = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaCreditoFatture   = Math.round((ivaCreditoDaFattureMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaCreditoRicorrenti = Math.round((ivaCreditoDaRicorrentiMap.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNetta = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
+    const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
+    const ivaNettaDefinitiva = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
+    const hasOverride = trimestre in IVA_VERSAMENTI;
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const scadenzaDate = new Date(y, m - 1, d);
@@ -51,7 +53,9 @@ async function getData() {
       ivaCredito,
       ivaCreditoFatture,
       ivaCreditoRicorrenti,
-      ivaNetta,
+      ivaNetta: ivaNettaDefinitiva,
+      ivaNettaCalcolata,
+      hasOverride,
       versata,
       urgent: !versata && diffDays <= 15,
       fatture: fatt,
@@ -130,10 +134,11 @@ export default async function ReportIVAPage() {
                   </div>
                 )}
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  da versare:
-                  <span className="num" style={{ color: t.ivaNetta > 0 ? "var(--text)" : "var(--sage)", fontWeight: 700, fontSize: "0.95rem" }}>
+                  {t.hasOverride ? "valore definitivo:" : "da versare:"}
+                  <span className="num" style={{ color: t.hasOverride ? "var(--accent)" : t.ivaNetta > 0 ? "var(--text)" : "var(--sage)", fontWeight: 700, fontSize: "0.95rem" }}>
                     {formatEuro(t.ivaNetta)}
                   </span>
+                  {t.hasOverride && <span className="badge badge-accent" style={{ fontSize: "0.5rem" }}>confermato</span>}
                 </div>
                 <span className={`badge ${t.versata ? "badge-success" : t.urgent ? "badge-error" : "badge-warning"}`} title={t.versata ? "Inferito dalla data — confermare con F24" : undefined}>
                   {t.versata ? "Versata" : "Da versare"}
@@ -183,13 +188,28 @@ export default async function ReportIVAPage() {
                     </tr>
                   )}
                   <tr style={{ borderTop: "1px solid var(--border)" }}>
-                    <td colSpan={2} style={{ paddingTop: "0.4rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", fontWeight: 700 }}>IVA netta da versare</td>
+                    <td colSpan={2} style={{ paddingTop: "0.4rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", fontWeight: 700 }}>
+                      IVA netta calcolata
+                    </td>
                     <td colSpan={2} style={{ paddingTop: "0.4rem" }}>
-                      <span className="num" style={{ color: t.ivaNetta > 0 ? "var(--text)" : "var(--sage)", fontWeight: 700, fontSize: "1rem" }}>
-                        {formatEuro(t.ivaNetta)}
+                      <span className="num" style={{ color: t.hasOverride ? "var(--muted)" : t.ivaNettaCalcolata > 0 ? "var(--text)" : "var(--sage)", fontWeight: t.hasOverride ? 400 : 700, fontSize: t.hasOverride ? "0.82rem" : "1rem", textDecoration: t.hasOverride ? "line-through" : "none" }}>
+                        {formatEuro(t.ivaNettaCalcolata)}
                       </span>
                     </td>
                   </tr>
+                  {t.hasOverride && (
+                    <tr>
+                      <td colSpan={2} style={{ paddingTop: "0.3rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--accent)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                        Valore definitivo — da commercialista
+                      </td>
+                      <td colSpan={2} style={{ paddingTop: "0.3rem" }}>
+                        <span className="num" style={{ color: "var(--accent)", fontWeight: 700, fontSize: "1rem" }}>
+                          {formatEuro(t.ivaNetta)}
+                        </span>
+                        <span className="badge badge-accent" style={{ fontSize: "0.52rem", marginLeft: "0.5rem", verticalAlign: "middle" }}>confermato</span>
+                      </td>
+                    </tr>
+                  )}
                 </tfoot>
               </table>
             </div>
