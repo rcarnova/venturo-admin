@@ -3,8 +3,8 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 4_968.78,
-  data: "2026-07-15", // riconciliazione 15/07 — anticipo soci €10.000 (Rosario €5k + Massimo €5k)
+  importo: 4_830.49,
+  data: "2026-08-03", // riconciliazione estratto conto 03/08/2026
 };
 
 // ─── Fido bancario ───────────────────────────────────────────────────────────
@@ -13,9 +13,9 @@ export const FIDO_BANCARIO = 5_000;
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,
-  prossimaRata: new Date(2026, 6, 21), // 21 luglio 2026
-  nRateRimanenti: 26,
-  totaleRimanente: 3_520.05,
+  prossimaRata: new Date(2026, 7, 21), // 21 agosto 2026
+  nRateRimanenti: 25,
+  totaleRimanente: 3_383.26,
 };
 
 // ─── Anticipo soci ───────────────────────────────────────────────────────────
