@@ -2,7 +2,7 @@ import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/li
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
-import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
 
 export const revalidate = 0;
@@ -118,9 +118,10 @@ async function getData() {
     scadenzaDate.setHours(0, 0, 0, 0);
     if (scadenzaDate < today) continue; // già versata
     const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNetta = Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
-    const noteCredito = creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
-    const noteAtteso = ivaDebAtteso > 0 ? ` · +${formatEuro(ivaDebAtteso)} attesa` : "";
+    const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
+    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
+    const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
+    const noteAtteso = !IVA_VERSAMENTI[trimestre] && ivaDebAtteso > 0 ? ` · +${formatEuro(ivaDebAtteso)} attesa` : "";
     flussi.push({
       id: `iva-${trimestre}`,
       data: scadenzaDate,

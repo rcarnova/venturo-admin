@@ -10,6 +10,14 @@ export const SALDO_BASE = {
 // ─── Fido bancario ───────────────────────────────────────────────────────────
 export const FIDO_BANCARIO = 5_000;
 
+// ─── IVA versamenti — override commercialista ─────────────────────────────────
+// Quando il commercialista fornisce la cifra esatta, inseriscila qui.
+// Sovrascrive il calcolo automatico (utile quando alcune spese non sono detraibili).
+// Formato: "Q1 2026" | "Q2 2026" | "Q3 2026" | "Q4 2026" → importo netto da versare
+export const IVA_VERSAMENTI: Record<string, number> = {
+  "Q2 2026": 4_284.05, // confermato dal commercialista — scadenza 20/08/2026
+};
+
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,
