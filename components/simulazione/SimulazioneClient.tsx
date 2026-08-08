@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { formatEuro } from "@/lib/utils";
 import type { UscitaFissa } from "@/app/simulazione/page";
@@ -35,6 +35,12 @@ export default function SimulazioneClient({
     anticipoDefault.map(a => ({ ...a, id: newId() }))
   );
   const [saving, setSaving] = useState(false);
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    setAnticipi(anticipoDefault.map(a => ({ ...a, id: newId() })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anticipoDefault]);
   const [saveResult, setSaveResult] = useState<"ok" | "error" | null>(null);
   const [saveError, setSaveError] = useState("");
 
@@ -54,6 +60,7 @@ export default function SimulazioneClient({
         setSaveResult("error");
       } else {
         setSaveResult("ok");
+        router.refresh(); // bust router cache so navigating back reads fresh Notion data
       }
     } catch {
       setSaveError("Errore di rete");
