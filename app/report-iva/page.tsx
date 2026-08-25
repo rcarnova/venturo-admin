@@ -16,12 +16,7 @@ async function getData() {
   const fatture = fatturePages.map(mapFattura);
   const ricevute = ricevutePages.map(mapFatturaRicevuta);
 
-  // IVA a credito separata per fonte
-  const ivaCreditoDaFattureMap    = calcolaIVACreditoPerTrimestre(ricevute, [], ANNO);
-  const ivaCreditoDaRicorrentiMap = calcolaIVACreditoPerTrimestre([], COSTI_RICORRENTI, ANNO);
-  const ivaCreditoMap             = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
-
-  // IVA a debito per trimestre (fatture emesse pagate)
+  // IVA a debito per trimestre (tutte le annate)
   const debitoPerTrimestre = new Map<string, ReturnType<typeof mapFattura>[]>();
   for (const f of fatture) {
     if (!f.trimestreIVA || f.status !== "Pagata") continue;
@@ -31,47 +26,65 @@ async function getData() {
 
   const today = new Date();
 
-  const trimestri = Array.from(debitoPerTrimestre.entries()).map(([trimestre, fatt]) => {
-    const ivaDebito           = Math.round(fatt.reduce((s, f) => s + f.iva22, 0) * 100) / 100;
-    const ivaCredito          = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
-    const ivaCreditoFatture   = Math.round((ivaCreditoDaFattureMap.get(trimestre) ?? 0) * 100) / 100;
+  // Credito IVA calcolato per ogni anno presente nei dati
+  const anniUnici = Array.from(new Set([ANNO, ...Array.from(debitoPerTrimestre.keys()).map(t => Number(t.split(" ")[1]))]));
+  const creditoTotalePerAnno     = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
+  const creditoFatturePerAnno    = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
+  const creditoRicorrentiPerAnno = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
+  for (const anno of anniUnici) {
+    creditoTotalePerAnno.set(anno,     calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, anno));
+    creditoFatturePerAnno.set(anno,    calcolaIVACreditoPerTrimestre(ricevute, [], anno));
+    creditoRicorrentiPerAnno.set(anno, calcolaIVACreditoPerTrimestre([], COSTI_RICORRENTI, anno));
+  }
+
+  const buildTrimestre = (trimestre: string, fatt: ReturnType<typeof mapFattura>[]) => {
+    const annoT = Number(trimestre.split(" ")[1]);
+    const ivaCreditoMap         = creditoTotalePerAnno.get(annoT)!;
+    const ivaCreditoDaFattureMap     = creditoFatturePerAnno.get(annoT)!;
+    const ivaCreditoDaRicorrentiMap  = creditoRicorrentiPerAnno.get(annoT)!;
+
+    const ivaDebito            = Math.round(fatt.reduce((s, f) => s + f.iva22, 0) * 100) / 100;
+    const ivaCredito           = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
+    const ivaCreditoFatture    = Math.round((ivaCreditoDaFattureMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaCreditoRicorrenti = Math.round((ivaCreditoDaRicorrentiMap.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
-    const ivaNettaDefinitiva = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
-    const hasOverride = trimestre in IVA_VERSAMENTI;
-    const scadenzaStr = scadenzaVersamentoIVA(trimestre);
-    const [d, m, y] = scadenzaStr.split("/").map(Number);
-    const scadenzaDate = new Date(y, m - 1, d);
-    const versata = scadenzaDate < today;
-    const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    const ivaNettaCalcolata    = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
+    const ivaNettaDefinitiva   = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
+    const hasOverride          = trimestre in IVA_VERSAMENTI;
+    const scadenzaStr          = scadenzaVersamentoIVA(trimestre);
+    const [d, m, y]            = scadenzaStr.split("/").map(Number);
+    const scadenzaDate         = new Date(y, m - 1, d);
+    const versata              = scadenzaDate < today;
+    const diffDays             = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     return {
       trimestre: trimestre as TrimestreIVA,
+      anno: annoT,
       periodo: periodoTrimestre(trimestre),
-      scadenzaStr,
-      scadenzaDate,
-      ivaDebito,
-      ivaCredito,
-      ivaCreditoFatture,
-      ivaCreditoRicorrenti,
-      ivaNetta: ivaNettaDefinitiva,
-      ivaNettaCalcolata,
-      hasOverride,
-      versata,
+      scadenzaStr, scadenzaDate,
+      ivaDebito, ivaCredito, ivaCreditoFatture, ivaCreditoRicorrenti,
+      ivaNetta: ivaNettaDefinitiva, ivaNettaCalcolata,
+      hasOverride, versata,
       urgent: !versata && diffDays <= 15,
       fatture: fatt,
     };
-  }).sort((a, b) => a.scadenzaDate.getTime() - b.scadenzaDate.getTime());
+  };
 
-  // Totali aggregati
-  const totaleIVAVersata   = trimestri.filter((t) => t.versata).reduce((s, t) => s + t.ivaNetta, 0);
-  const totaleIVADaVersare = trimestri.filter((t) => !t.versata).reduce((s, t) => s + t.ivaNetta, 0);
+  const allTrimestri = Array.from(debitoPerTrimestre.entries())
+    .map(([t, f]) => buildTrimestre(t, f))
+    .sort((a, b) => a.scadenzaDate.getTime() - b.scadenzaDate.getTime());
+
+  const trimestri        = allTrimestri.filter(t => t.anno === ANNO);
+  const storicoTrimestri = allTrimestri.filter(t => t.anno < ANNO);
+
+  // Totali anno corrente
+  const totaleIVAVersata   = trimestri.filter(t => t.versata).reduce((s, t) => s + t.ivaNetta, 0);
+  const totaleIVADaVersare = trimestri.filter(t => !t.versata).reduce((s, t) => s + t.ivaNetta, 0);
   const totaleCredito      = trimestri.reduce((s, t) => s + t.ivaCredito, 0);
 
   // Dettaglio ricevute con IVA detraibile (con fattura SDI)
-  const ricevuteConIVA = ricevute.filter((f) => f.importoIVA > 0);
+  const ricevuteConIVA = ricevute.filter(f => f.importoIVA > 0);
 
   // Costi ricorrenti con IVA (senza fattura SDI)
-  const costiRicorrentiConIVA = COSTI_RICORRENTI.filter((c) => c.aliquotaIVA > 0).map((c) => ({
+  const costiRicorrentiConIVA = COSTI_RICORRENTI.filter(c => c.aliquotaIVA > 0).map(c => ({
     label: c.label,
     importoNetto: c.importoNetto,
     aliquotaIVA: c.aliquotaIVA,
@@ -79,11 +92,13 @@ async function getData() {
     frequenzaMesi: c.frequenzaMesi ?? 1,
   }));
 
-  return { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA };
+  return { trimestri, storicoTrimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA };
 }
 
 export default async function ReportIVAPage() {
-  const { trimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA } = await getData();
+  const { trimestri, storicoTrimestri, totaleIVAVersata, totaleIVADaVersare, totaleCredito, ricevuteConIVA, costiRicorrentiConIVA } = await getData();
+
+  const totaleStoricoVersato = storicoTrimestri.reduce((s, t) => s + t.ivaNetta, 0);
 
   return (
     <div>
@@ -92,14 +107,20 @@ export default async function ReportIVAPage() {
         subtitle="Regime di cassa — liquidazione trimestrale con compensazione credito acquisti"
       />
 
-      {/* Riepilogo */}
+      {/* Riepilogo anno corrente */}
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.6rem" }}>
+        {ANNO}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
-        <StatCard label="IVA netta versata" value={formatEuro(totaleIVAVersata)} color="#00c864" note="storico trimestri chiusi" />
+        <StatCard label="IVA netta versata" value={formatEuro(totaleIVAVersata)} color="#00c864" note={`${ANNO} · trimestri chiusi`} />
         <StatCard label="IVA credito acquisti" value={formatEuro(totaleCredito)} color="var(--sage)" note="fatture ricevute + abbonamenti" />
         <StatCard label="IVA netta da versare" value={formatEuro(totaleIVADaVersare)} color={totaleIVADaVersare > 0 ? "var(--accent)" : "var(--muted)"} note="debito − credito trimestri aperti" />
+        {storicoTrimestri.length > 0 && (
+          <StatCard label="Versato anni prec." value={formatEuro(totaleStoricoVersato)} color="var(--muted)" note={`${storicoTrimestri.length} trim. — dati Notion`} />
+        )}
       </div>
 
-      {/* Dettaglio per trimestre */}
+      {/* Dettaglio per trimestre — anno corrente */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
         {trimestri.map((t) => (
           <div
@@ -228,6 +249,93 @@ export default async function ReportIVAPage() {
           </div>
         ))}
       </div>
+
+      {/* Storico versamenti — anni precedenti */}
+      {storicoTrimestri.length > 0 && (
+        <>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            Storico versamenti — anni precedenti
+          </div>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden", marginBottom: "2rem" }}>
+            <div className="table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Trimestre</th>
+                    <th>Periodo</th>
+                    <th className="col-hide-mobile">Scadenza</th>
+                    <th className="col-hide-mobile">IVA debito</th>
+                    <th className="col-hide-mobile">Credito</th>
+                    <th>Versato</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {storicoTrimestri.map((t, i) => {
+                    const prevAnno = i > 0 ? storicoTrimestri[i - 1].anno : null;
+                    const showYear = prevAnno !== t.anno;
+                    return (
+                      <>
+                        {showYear && (
+                          <tr key={`year-${t.anno}`}>
+                            <td colSpan={7} style={{ padding: "0.5rem 0 0.25rem", fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", letterSpacing: "0.1em", textTransform: "uppercase", borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
+                              {t.anno}
+                            </td>
+                          </tr>
+                        )}
+                        <tr key={t.trimestre}>
+                          <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent)", fontSize: "0.82rem" }}>
+                            {t.trimestre}
+                          </td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
+                            {t.periodo}
+                          </td>
+                          <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted-2)" }}>
+                            {t.scadenzaStr}
+                          </td>
+                          <td className="col-hide-mobile">
+                            <span className="num" style={{ color: "var(--muted)", fontSize: "0.78rem" }}>{formatEuro(t.ivaDebito)}</span>
+                          </td>
+                          <td className="col-hide-mobile">
+                            {t.ivaCredito > 0
+                              ? <span className="num" style={{ color: "var(--sage)", fontSize: "0.78rem" }}>−{formatEuro(t.ivaCredito)}</span>
+                              : <span style={{ color: "var(--muted-2)", fontSize: "0.7rem" }}>—</span>
+                            }
+                          </td>
+                          <td>
+                            <span className="num" style={{ color: "#00c864", fontWeight: 700 }}>{formatEuro(t.ivaNetta)}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: "0.3rem", alignItems: "center", flexWrap: "wrap" }}>
+                              <span className="badge badge-success" style={{ fontSize: "0.52rem" }}>Versata</span>
+                              {t.hasOverride
+                                ? <span className="badge badge-accent" style={{ fontSize: "0.52rem" }}>confermato</span>
+                                : <span className="badge badge-neutral" style={{ fontSize: "0.52rem" }}>stimato</span>
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      </>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--border)" }}>
+                    <td colSpan={5} style={{ paddingTop: "0.5rem", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", fontWeight: 700 }}>
+                      Totale versato anni precedenti
+                    </td>
+                    <td colSpan={2} style={{ paddingTop: "0.5rem" }}>
+                      <span className="num" style={{ color: "#00c864", fontWeight: 700, fontSize: "0.95rem" }}>
+                        {formatEuro(totaleStoricoVersato)}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Dettaglio credito — fatture SDI */}
       {ricevuteConIVA.length > 0 && (
