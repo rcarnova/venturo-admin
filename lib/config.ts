@@ -3,8 +3,8 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 4_830.49,
-  data: "2026-08-03", // riconciliazione estratto conto 03/08/2026
+  importo: 336.14,
+  data: "2026-08-25", // riconciliazione estratto conto 25/08/2026
 };
 
 // ─── Fido bancario ───────────────────────────────────────────────────────────
@@ -15,15 +15,15 @@ export const FIDO_BANCARIO = 5_000;
 // Sovrascrive il calcolo automatico (utile quando alcune spese non sono detraibili).
 // Formato: "Q1 2026" | "Q2 2026" | "Q3 2026" | "Q4 2026" → importo netto da versare
 export const IVA_VERSAMENTI: Record<string, number> = {
-  "Q2 2026": 4_284.05, // confermato dal commercialista — scadenza 20/08/2026
+  "Q2 2026": 4_284.05, // confermato dal commercialista — pagato 25/08/2026 (rimborsato a Massimo)
 };
 
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,
-  prossimaRata: new Date(2026, 7, 21), // 21 agosto 2026
-  nRateRimanenti: 25,
-  totaleRimanente: 3_383.26,
+  prossimaRata: new Date(2026, 8, 21), // 21 settembre 2026
+  nRateRimanenti: 24,
+  totaleRimanente: 3_246.47,
 };
 
 // ─── Anticipo soci ───────────────────────────────────────────────────────────
