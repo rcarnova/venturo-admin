@@ -28,7 +28,7 @@ export function scadenzaVersamentoIVA(trimestre: string): string {
   const dates: Record<string, string> = {
     Q1: `16/05/${y}`,
     Q2: `20/08/${y}`,
-    Q3: `16/10/${y}`,
+    Q3: `16/11/${y}`,
     Q4: `16/03/${y + 1}`,
   };
   return dates[q] ?? "—";
