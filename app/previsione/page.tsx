@@ -330,7 +330,7 @@ export default async function PrevisioneAnnualePage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note={noteAnticipo} />
-            <RigaValore label="IVA (Q2 + Q3)" value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
+            <RigaValore label={`IVA (${uscite.filter(u => u.tipo === "iva").map(u => u.label.split(" — ")[0].replace("IVA ", "")).join(" + ") || "—"})`} value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
             <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />
             {totaleAbbonamenti2026 > 0 && (
