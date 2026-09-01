@@ -3,8 +3,8 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 11_064.46,
-  data: "2026-09-01", // riconciliazione 01/09/2026 — incasso Claas
+  importo: 6_064.46,
+  data: "2026-09-01", // riconciliazione 01/09/2026 — incasso Claas (estratto conto)
 };
 
 // ─── Fido bancario ───────────────────────────────────────────────────────────
