@@ -108,8 +108,8 @@ export function mapFattura(page: PageObjectResponse): Fattura {
   const trimestreIVA = dataIncasso ? calcolaTrimestre(dataIncasso) : null;
   const baseIva = importo * 1.04; // imponibile IVA = compenso + INPS rivalsa 4%
   const iva22 = Math.round(baseIva * 0.22 * 100) / 100;
-  const ritenuta = Math.round(importo * 0.20 * 100) / 100; // 20% sul solo compenso (DPR 600/73 art. 25)
-  const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // × 1.0688 — lordo IVA, netto ritenuta
+  const ritenuta = Math.round(baseIva * 0.20 * 100) / 100; // 20% su compenso + INPS rivalsa (base imponibile IVA, art. 25 DPR 600/73)
+  const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // lordo IVA, netto ritenuta
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
