@@ -44,14 +44,27 @@ export type CostoRicorrente = {
 };
 
 export const COSTI_RICORRENTI: CostoRicorrente[] = [
-  { label: "Google Workspace", importoNetto: 16.20, aliquotaIVA: 0, giornoAddebito: 1 }, // reverse charge B2B art. 17 DPR 633/72: Google non addebita IVA italiana
+  // ── Software / abbonamenti (reverse charge — IVA 0) ──────────────────────
+  { label: "Google Workspace", importoNetto: 16.20, aliquotaIVA: 0, giornoAddebito: 1 },
+  { label: "Canva", importoNetto: 109.99, aliquotaIVA: 0, giornoAddebito: 18, frequenzaMesi: 12, primaData: { anno: 2026, mese: 10 } }, // 18 nov 2026
+
+  // ── Infrastruttura studio (SDI con IVA 22%) ───────────────────────────────
+  { label: "Aruba PEC", importoNetto: 9.90, aliquotaIVA: 0.22, giornoAddebito: 12, frequenzaMesi: 12, primaData: { anno: 2026, mese: 11 } }, // 12 dic 2026
+  { label: "Dominio Venturo Consulting", importoNetto: 16.49, aliquotaIVA: 0.22, giornoAddebito: 30, frequenzaMesi: 12, primaData: { anno: 2027, mese: 0 } }, // 30 gen 2027
+  { label: "Dominio Studio Miller", importoNetto: 16.49, aliquotaIVA: 0.22, giornoAddebito: 7, frequenzaMesi: 12, primaData: { anno: 2027, mese: 4 } }, // 7 mag 2027
+
+  // ── Progetto speak4nature — costi UPO (SDI con IVA 22%) ──────────────────
+  { label: "Dominio speak4nature.it", importoNetto: 11.99, aliquotaIVA: 0.22, giornoAddebito: 3, frequenzaMesi: 12, primaData: { anno: 2027, mese: 3 } }, // 3 apr 2027
+  { label: "Hosting speak4nature.eu", importoNetto: 79.00, aliquotaIVA: 0.22, giornoAddebito: 3, frequenzaMesi: 12, primaData: { anno: 2027, mese: 3 } }, // 3 apr 2027
+
+  // ── Costi bancari ────────────────────────────────────────────────────────
   {
     label: "Canone trimestrale",
     importoNetto: 27.25,
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 3,
-    primaData: { anno: 2025, mese: 11 }, // ciclo: data valuta 31/12, 31/03, 30/06, 30/09
+    primaData: { anno: 2025, mese: 11 }, // ciclo: 31/12, 31/03, 30/06, 30/09
   },
   {
     label: "Linea di credito banca",
@@ -59,7 +72,7 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 3,
-    primaData: { anno: 2025, mese: 11 }, // ciclo: data valuta 31/12, 31/03, 30/06, 30/09
+    primaData: { anno: 2025, mese: 11 },
   },
   {
     label: "Canone carta di credito",
@@ -67,7 +80,7 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 12,
-    primaData: { anno: 2026, mese: 3 }, // primo addebito: 30 aprile 2026 (apr = 30gg, giorno cappato)
+    primaData: { anno: 2026, mese: 3 }, // 30 apr 2026 (giorno cappato)
   },
   {
     label: "Imposta di bollo c/c",
@@ -75,6 +88,6 @@ export const COSTI_RICORRENTI: CostoRicorrente[] = [
     aliquotaIVA: 0,
     giornoAddebito: 31,
     frequenzaMesi: 12,
-    primaData: { anno: 2025, mese: 11 }, // data valuta 31/12 ogni anno, addebitata a inizio gennaio
+    primaData: { anno: 2025, mese: 11 }, // 31/12 ogni anno
   },
 ];
