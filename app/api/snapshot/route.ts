@@ -93,7 +93,8 @@ export async function GET(req: NextRequest) {
     const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
     ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });
   }
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
+  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
   for (const [trimestre, { certo, atteso }] of Array.from(ivaPerTrimestre)) {
     const scadStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadStr.split("/").map(Number);

@@ -212,6 +212,7 @@ export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
     importo: getNumber(p, "Importo"),          // netto da pagare al fornitore
     importoIVA: getFormula(p, "IVA"),          // IVA detraibile — formula: scorporo da Importo × Aliquota IVA
     importoRitenuta: getNumber(p, "Ritenuta"), // importo ritenuta dalla fattura (es. €130)
+    reverseCharge: getCheckbox(p, "Reverse charge"), // true = B2B inversione contabile, IVA non pagata al fornitore
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? null,
     progetto: getRelationName(p, "Progetto"),

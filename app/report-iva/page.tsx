@@ -31,9 +31,11 @@ async function getData() {
   const creditoTotalePerAnno     = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
   const creditoFatturePerAnno    = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
   const creditoRicorrentiPerAnno = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
+  // Escludi "Da ricevere" e reverse charge dall'IVA credito (non ancora ricevute / nessun cash IVA)
+  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
   for (const anno of anniUnici) {
-    creditoTotalePerAnno.set(anno,     calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, anno));
-    creditoFatturePerAnno.set(anno,    calcolaIVACreditoPerTrimestre(ricevute, [], anno));
+    creditoTotalePerAnno.set(anno,     calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, anno));
+    creditoFatturePerAnno.set(anno,    calcolaIVACreditoPerTrimestre(ricevutePerIVA, [], anno));
     creditoRicorrentiPerAnno.set(anno, calcolaIVACreditoPerTrimestre([], COSTI_RICORRENTI, anno));
   }
 

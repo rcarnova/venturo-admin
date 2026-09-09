@@ -41,6 +41,7 @@ export interface FatturaRicevuta {
   importo: number;          // netto da pagare al fornitore (bonifico)
   importoIVA: number;       // IVA in acquisto detraibile (credito IVA vs Erario)
   importoRitenuta: number;  // ritenuta d'acconto da versare all'Erario (0 se non applicabile)
+  reverseCharge: boolean;   // true = inversione contabile (B2B), IVA non pagata al fornitore
   status: string | null;
   progetto: string | null;
   fileFattura: string | null;

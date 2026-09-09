@@ -53,21 +53,23 @@ async function getData() {
   );
   const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
-  // Uscite certe — fatture ricevute da pagare (Ricevuta) o scadute (In ritardo)
+  // Uscite — da pagare (Ricevuta), scadute (In ritardo), attese (Da ricevere)
   for (const f of ricevute) {
-    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
+    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere";
+    if (!statoOk || !f.scadenza) continue;
     const d = new Date(f.scadenza);
     d.setHours(0, 0, 0, 0);
     const scaduta = d < today;
     const dataEffettiva = scaduta ? new Date(today) : d;
+    const label = scaduta ? `${f.nome} ⚠ scaduta` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome;
     flussi.push({
       id: `fr-${f.id}`,
       data: dataEffettiva,
       dataStr: scaduta ? `oggi (sc. ${d.toLocaleDateString("it-IT")})` : d.toLocaleDateString("it-IT"),
-      label: scaduta ? `${f.nome} ⚠ scaduta` : f.nome,
+      label,
       importo: -f.importo,
       tipo: "uscita_fornitore",
-      certo: true,
+      certo: f.status !== "Da ricevere",
     });
   }
 
@@ -110,7 +112,8 @@ async function getData() {
     const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
     ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });
   }
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO_CORRENTE);
+  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO_CORRENTE);
   for (const [trimestre, { certo: ivaDebCerto, atteso: ivaDebAtteso }] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
