@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
 import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { SALDO_BASE, COSTI_RICORRENTI } from "@/lib/config";
+import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 export const revalidate = 0;
@@ -48,6 +48,8 @@ async function getDashboardData() {
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");
   const totaleDaIncassare = fattureInviate.reduce((s, f) => s + f.incassoNetto, 0);
+  const fattureDaInviareConData = fatture.filter((f) => f.status === "Da inviare" && f.dataIncassoAtteso != null);
+  const totaleDaInviareConData = fattureDaInviareConData.reduce((s, f) => s + f.incassoNetto, 0);
   const fatturePagate = fatture.filter((f) => f.status === "Pagata");
   const totalePagato = fatturePagate.reduce((s, f) => s + f.incassoNetto, 0);
   const totaleIVAPagata = fatturePagate.reduce((s, f) => s + f.iva22, 0);
@@ -79,7 +81,8 @@ async function getDashboardData() {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  const ivaCredito = calcolaIVACreditoPerTrimestre(fattureRicevute, COSTI_RICORRENTI, ANNO_CORRENTE);
+  const ricevutePerIVA = fattureRicevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO_CORRENTE);
   const scadenzeCalcolate: ScadenzaCalcolata[] = Array.from(ivaPerTrimestre.entries())
     .map(([trimestre, ivaDebito]) => {
       const scadenzaStr = scadenzaVersamentoIVA(trimestre);
@@ -88,7 +91,8 @@ async function getDashboardData() {
       const versata = scadenzaDate < today;
       const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
       const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-      const totaleIVA = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+      const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+      const totaleIVA = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
       return {
         trimestre: trimestre as ScadenzaCalcolata["trimestre"],
         periodo: periodoTrimestre(trimestre),
@@ -103,6 +107,9 @@ async function getDashboardData() {
 
   const prossimaScadenza = scadenzeCalcolate.find((s) => !s.versata) ?? null;
   const ivaProximaScadenza = prossimaScadenza?.totaleIVA ?? 0;
+  const totaleIVAResiduaDaVersare = Math.round(
+    scadenzeCalcolate.filter(s => !s.versata).reduce((s, sc) => s + sc.totaleIVA, 0) * 100
+  ) / 100;
 
   const scadenzeImminenti = scadenzeCalcolate.filter((s) => s.urgent);
   if (scadenzeImminenti.length > 0)
@@ -113,13 +120,15 @@ async function getDashboardData() {
   const wonDeals = deals.filter((d) => d.status === "Won");
   const openDeals = deals.filter((d) => d.status === "Open");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
-  const totaleFatturato = fatture.reduce((s, f) => s + f.importo, 0);
+  const totaleFatturato = fatture
+    .filter(f => f.status === "Inviata" || f.status === "Pagata")
+    .reduce((s, f) => s + f.importo, 0);
   const totaleDaFatturare = Math.max(0, totaleVenduto - totaleFatturato);
   const totaleOpenPipeline = openDeals.reduce((s, d) => s + d.valore, 0);
 
   return {
     alerts,
-    stats: { saldoAttuale, totaleDaIncassare, fattureInviateMesiExtra, totalePagato, totaleIVAPagata, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
+    stats: { saldoAttuale, totaleDaIncassare, totaleDaInviareConData, fattureInviateMesiExtra, totalePagato, totaleIVAPagata, totaleIVAResiduaDaVersare, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
     scadenzeCalcolate,
     fornitoriDaPagare,
     prossimaScadenza,
@@ -129,7 +138,7 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const { alerts, stats, scadenzeCalcolate, fornitoriDaPagare, prossimaScadenza, pipeline } = await getDashboardData();
-  const ivaImplicita = Math.round(stats.totaleIVAPagata);
+  const ivaResiduaLabel = stats.totaleIVAResiduaDaVersare > 0 ? `di cui ${formatEuro(stats.totaleIVAResiduaDaVersare)} IVA ancora da versare` : "IVA corrente versata";
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
     day: "numeric",
@@ -245,7 +254,7 @@ export default async function DashboardPage() {
         </div>
         <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "1.25rem" }}>
           <StatCard label="Saldo in banca" value={formatEuro(stats.saldoAttuale)} color="var(--text)" tier="reale" />
-          <StatCard label="Incassato" value={formatEuro(stats.totalePagato)} color="#00c864" note={`di cui ${formatEuro(ivaImplicita)} IVA da versare`} tier="reale" />
+          <StatCard label="Incassato" value={formatEuro(stats.totalePagato)} color="#00c864" note={ivaResiduaLabel} tier="reale" />
           <StatCard label="Fatture fornitori pagate" value={formatEuro(stats.totaleSpese)} color="var(--muted)" tier="reale" />
         </div>
 
@@ -255,7 +264,19 @@ export default async function DashboardPage() {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted)", letterSpacing: "0.09em", textTransform: "uppercase" }}>Impegni</div>
         </div>
         <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
-          <StatCard label="Da incassare" value={formatEuro(stats.totaleDaIncassare)} color="var(--accent)" note={stats.fattureInviateMesiExtra > 0 ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.` : "lordo IVA · fatture inviate"} tier="impegno" />
+          <StatCard
+            label="Da incassare"
+            value={formatEuro(stats.totaleDaIncassare)}
+            color="var(--accent)"
+            note={
+              stats.fattureInviateMesiExtra > 0
+                ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.`
+                : stats.totaleDaInviareConData > 0
+                ? `+ ${formatEuro(stats.totaleDaInviareConData)} bozze con data`
+                : "lordo IVA · fatture inviate"
+            }
+            tier="impegno"
+          />
           <StatCard label="Fornitori da pagare" value={formatEuro(stats.totaleFornitori)} color={stats.totaleFornitori > 0 ? "#ffb400" : "var(--muted)"} tier="impegno" />
           <StatCard label="Rimborsi aperti" value={formatEuro(stats.totaleRimborsi)} color={stats.totaleRimborsi > 0 ? "#ffb400" : "var(--muted)"} tier="impegno" />
           {prossimaScadenza && (

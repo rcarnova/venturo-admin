@@ -44,18 +44,7 @@ export type CostoRicorrente = {
 };
 
 export const COSTI_RICORRENTI: CostoRicorrente[] = [
-  // ── Software / abbonamenti (reverse charge — IVA 0) ──────────────────────
-  { label: "Google Workspace", importoNetto: 16.20, aliquotaIVA: 0, giornoAddebito: 1 },
-  { label: "Canva", importoNetto: 109.99, aliquotaIVA: 0, giornoAddebito: 18, frequenzaMesi: 12, primaData: { anno: 2026, mese: 10 } }, // 18 nov 2026
-
-  // ── Infrastruttura studio (SDI con IVA 22%) ───────────────────────────────
-  { label: "Aruba PEC", importoNetto: 9.90, aliquotaIVA: 0.22, giornoAddebito: 12, frequenzaMesi: 12, primaData: { anno: 2026, mese: 11 } }, // 12 dic 2026
-  { label: "Dominio Venturo Consulting", importoNetto: 16.49, aliquotaIVA: 0.22, giornoAddebito: 30, frequenzaMesi: 12, primaData: { anno: 2027, mese: 0 } }, // 30 gen 2027
-  { label: "Dominio Studio Miller", importoNetto: 16.49, aliquotaIVA: 0.22, giornoAddebito: 7, frequenzaMesi: 12, primaData: { anno: 2027, mese: 4 } }, // 7 mag 2027
-
-  // ── Progetto speak4nature — costi UPO (SDI con IVA 22%) ──────────────────
-  { label: "Dominio speak4nature.it", importoNetto: 11.99, aliquotaIVA: 0.22, giornoAddebito: 3, frequenzaMesi: 12, primaData: { anno: 2027, mese: 3 } }, // 3 apr 2027
-  { label: "Hosting speak4nature.eu", importoNetto: 79.00, aliquotaIVA: 0.22, giornoAddebito: 3, frequenzaMesi: 12, primaData: { anno: 2027, mese: 3 } }, // 3 apr 2027
+  // Google Workspace, Canva, Aruba PEC, domini e hosting sono in Notion come "Da ricevere" — non duplicare qui
 
   // ── Costi bancari ────────────────────────────────────────────────────────
   {

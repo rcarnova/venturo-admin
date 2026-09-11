@@ -140,5 +140,5 @@ export function calcolaSaldoDinamico(
     .filter(f => f.status === "Pagata" && f.dataPagamento && f.dataPagamento > baseData && f.dataPagamento <= oggi)
     .reduce((s, f) => s + f.importo, 0);
 
-  return Math.round(baseImporto + incassi - pagamenti);
+  return Math.round((baseImporto + incassi - pagamenti) * 100) / 100;
 }

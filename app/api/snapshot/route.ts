@@ -122,11 +122,12 @@ export async function GET(req: NextRequest) {
 
   // Fornitori
   for (const f of ricevute) {
-    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
+    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere";
+    if (!statoOk || !f.scadenza) continue;
     const d = new Date(f.scadenza); d.setHours(0, 0, 0, 0);
     if (d > fineAnno) continue;
     const dataEff = d < today ? new Date(today) : d;
-    uscite.push({ data: dataEff.toISOString().split("T")[0], mese: dataEff.getMonth(), label: d < today ? `${f.nome} ⚠ scaduta` : f.nome, importo: f.importo, tipo: "fornitore" });
+    uscite.push({ data: dataEff.toISOString().split("T")[0], mese: dataEff.getMonth(), label: d < today ? `${f.nome} ⚠ scaduta` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome, importo: f.importo, tipo: "fornitore" });
   }
 
   // Costi ricorrenti
@@ -225,7 +226,7 @@ export async function GET(req: NextRequest) {
     forecastMensile,
     fatture: fattureRiepilogo,
     fornitori: ricevute
-      .filter(f => f.status === "Ricevuta" || f.status === "In ritardo")
+      .filter(f => f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere")
       .map(f => ({ nome: f.nome, importo: f.importo, scadenza: f.scadenza, status: f.status }))
       .sort((a, b) => (a.scadenza ?? "").localeCompare(b.scadenza ?? "")),
   });

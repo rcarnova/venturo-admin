@@ -82,8 +82,8 @@ async function getData() {
   const totaleIVADaVersare = trimestri.filter(t => !t.versata).reduce((s, t) => s + t.ivaNetta, 0);
   const totaleCredito      = trimestri.reduce((s, t) => s + t.ivaCredito, 0);
 
-  // Dettaglio ricevute con IVA detraibile (con fattura SDI)
-  const ricevuteConIVA = ricevute.filter(f => f.importoIVA > 0);
+  // Dettaglio ricevute con IVA detraibile (con fattura SDI) — escludi "Da ricevere" e reverse charge
+  const ricevuteConIVA = ricevutePerIVA.filter(f => f.importoIVA > 0);
 
   // Costi ricorrenti con IVA (senza fattura SDI)
   const costiRicorrentiConIVA = COSTI_RICORRENTI.filter(c => c.aliquotaIVA > 0).map(c => ({
