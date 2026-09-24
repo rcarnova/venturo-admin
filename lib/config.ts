@@ -21,9 +21,9 @@ export const IVA_VERSAMENTI: Record<string, number> = {
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,
-  prossimaRata: new Date(2026, 8, 21), // 21 settembre 2026
-  nRateRimanenti: 24,
-  totaleRimanente: 3_246.47,
+  prossimaRata: new Date(2026, 9, 21), // 21 ottobre 2026 — rata settembre pagata il 21/09/2026
+  nRateRimanenti: 23,
+  totaleRimanente: 3_109.68, // 3_246.47 - 136.79
 };
 
 // ─── Anticipo soci ───────────────────────────────────────────────────────────
