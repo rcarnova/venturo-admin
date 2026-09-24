@@ -3,7 +3,7 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 2_062.96,
+  importo: 1_926.17, // 2062.96 - 136.79 (rata mutuo 21/09/2026)
   data: "2026-09-01", // riconciliazione 01/09/2026 — anticipo soci set (€2k Rosario + €2k Massimo)
 };
 
