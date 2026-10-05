@@ -107,14 +107,12 @@ async function getData() {
     usciteFisse.push({ mese: scad.getMonth(), importo: f.importoRitenuta, label: `Ritenuta ${f.nome}`, tipo: "ritenuta" });
   }
 
-  // Anticipi soci — da Notion se configurato, altrimenti config.ts (solo date future nell'anno)
+  // Anticipi soci — solo config.ts (modifica ANTICIPO_SOCI in lib/config.ts)
   const anticipoDefault = anticipiSoci
     .filter(a => { const d = new Date(a.data); d.setHours(0, 0, 0, 0); return d >= today && d <= fineAnno; })
     .map(a => ({ dataStr: new Date(a.data).toISOString().split("T")[0], importo: a.importo }));
 
-  const hasNotionDB = !!process.env.NOTION_DB_ANTICIPI;
-
-  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO, hasNotionDB };
+  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
 }
 
 export default async function SimulazionePage() {

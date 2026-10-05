@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { formatEuro } from "@/lib/utils";
 import type { UscitaFissa } from "@/app/simulazione/page";
 
@@ -20,7 +19,6 @@ type Props = {
   fattore: number;
   semestre: number;
   fidoBancario: number;
-  hasNotionDB: boolean;
 };
 
 let _nextId = 0;
@@ -28,47 +26,17 @@ function newId() { return `a-${_nextId++}`; }
 
 export default function SimulazioneClient({
   saldoAttuale, daIncassare, daFatturareWon,
-  usciteFisse, anticipoDefault, meseCorrente, fattore, fidoBancario, hasNotionDB,
+  usciteFisse, anticipoDefault, meseCorrente, fattore, fidoBancario,
 }: Props) {
-  const router = useRouter();
   const [anticipi, setAnticipi] = useState<Anticipo[]>(
     anticipoDefault.map(a => ({ ...a, id: newId() }))
   );
-  const [saving, setSaving] = useState(false);
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     setAnticipi(anticipoDefault.map(a => ({ ...a, id: newId() })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anticipoDefault]);
-  const [saveResult, setSaveResult] = useState<"ok" | "error" | null>(null);
-  const [saveError, setSaveError] = useState("");
-
-  async function renderEffettivi() {
-    const valid = anticipi.filter(a => a.dataStr && Number(a.importo) > 0);
-    setSaving(true);
-    setSaveResult(null);
-    try {
-      const res = await fetch("/api/anticipi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anticipi: valid.map(a => ({ data: a.dataStr, importo: Number(a.importo) })) }),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error?: string };
-        setSaveError(err.error ?? "Errore sconosciuto");
-        setSaveResult("error");
-      } else {
-        setSaveResult("ok");
-        router.refresh(); // bust router cache so navigating back reads fresh Notion data
-      }
-    } catch {
-      setSaveError("Errore di rete");
-      setSaveResult("error");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function addAnticipo() {
     setAnticipi(prev => [...prev, { id: newId(), dataStr: "", importo: 0 }]);
@@ -191,52 +159,13 @@ export default function SimulazioneClient({
         )}
       </div>
 
-      {/* ── Rendi effettive ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginBottom: "2rem", padding: "0.9rem 1.1rem", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Applica al piano reale
-          </div>
-          {!hasNotionDB ? (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted-2)", marginTop: "3px" }}>
-              Configura <code style={{ background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px" }}>NOTION_DB_ANTICIPI</code> nelle variabili d&rsquo;ambiente per abilitare il salvataggio su Notion.
-            </div>
-          ) : saveResult === "ok" ? (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--sage)", marginTop: "3px" }}>
-              Piano anticipo aggiornato ✓ — Previsione e Cassa ora usano questi valori.
-            </div>
-          ) : saveResult === "error" ? (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "#ff4444", marginTop: "3px" }}>
-              Errore: {saveError}
-            </div>
-          ) : (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted-2)", marginTop: "3px" }}>
-              Salva questa simulazione come piano definitivo — verrà usata in Previsione e Cassa.
-            </div>
-          )}
+      {/* ── Nota piano reale ── */}
+      <div style={{ marginBottom: "2rem", padding: "0.9rem 1.1rem", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px" }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          Applica al piano reale
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {saveResult === "ok" ? (
-            <button onClick={() => router.push("/previsione")} style={{ ...btnStyle, color: "var(--sage)", background: "rgba(0,200,100,0.08)", borderColor: "rgba(0,200,100,0.3)" }}>
-              → Vai alla previsione
-            </button>
-          ) : (
-            <button
-              onClick={renderEffettivi}
-              disabled={!hasNotionDB || saving || anticipi.filter(a => a.dataStr && Number(a.importo) > 0).length === 0}
-              title={!hasNotionDB ? "Configura NOTION_DB_ANTICIPI per abilitare" : undefined}
-              style={{
-                ...btnStyle,
-                color: hasNotionDB ? "var(--sage)" : "var(--muted)",
-                background: hasNotionDB ? "rgba(0,200,100,0.08)" : "var(--surface-3)",
-                borderColor: hasNotionDB ? "rgba(0,200,100,0.3)" : "var(--border)",
-                opacity: saving ? 0.6 : 1,
-                cursor: (!hasNotionDB || saving) ? "not-allowed" : "pointer",
-              }}
-            >
-              {saving ? "Salvataggio..." : "Rendi effettive →"}
-            </button>
-          )}
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--muted-2)", marginTop: "3px" }}>
+          Per rendere effettive le modifiche, aggiorna <code style={{ background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px" }}>ANTICIPO_SOCI</code> in <code style={{ background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px" }}>lib/config.ts</code>.
         </div>
       </div>
 
