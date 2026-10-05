@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
 import {
   calcolaSaldoDinamico, scadenzaVersamentoIVA, periodoTrimestre,
-  calcolaIVACreditoPerTrimestre, calcolaTrimestre, scadenzaRitenuta, toDateStr,
+  calcolaIVACreditoPerTrimestre, calcolaTrimestre, scadenzaRitenuta, toDateStr, proiettaSaldo,
 } from "@/lib/utils";
 import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
@@ -163,8 +163,8 @@ export async function GET(req: NextRequest) {
   uscite.sort((a, b) => a.data.localeCompare(b.data));
 
   const totaleUscite = uscite.reduce((s, u) => s + u.importo, 0);
-  const saldoConservativo = saldoAttuale - totaleUscite;
-  const saldoOttimistico  = saldoAttuale + daIncassare - totaleUscite;
+  const { conservativo: saldoConservativo, ottimistico: saldoOttimistico } =
+    proiettaSaldo(saldoAttuale, daIncassare, totaleUscite);
 
   // ── Forecast mensile ──────────────────────────────────────────────────────
   const uscitePerMese = Array(12).fill(0) as number[];

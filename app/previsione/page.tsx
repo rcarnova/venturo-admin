@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr, proiettaSaldo } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
@@ -229,8 +229,8 @@ async function getData() {
   const abbH2    = uscite.filter(u => u.tipo === "abbonamento"  && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
   const ritH2    = uscite.filter(u => u.tipo === "ritenuta"     && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
 
-  const saldoConservativo  = SALDO_INIZIALE - totaleUscite;
-  const saldoOttimistico   = SALDO_INIZIALE + totaleEntrateAttese - totaleUscite;
+  const { conservativo: saldoConservativo, ottimistico: saldoOttimistico } =
+    proiettaSaldo(SALDO_INIZIALE, totaleEntrateAttese, totaleUscite);
 
   // Running balance mensile: uscite certe + entrate attese da fatture Inviata (+30gg)
   const righe: { mese: number; entrate: number; entrateDettaglio: { nome: string; importo: number }[]; uscite: number; saldo: number; passato: boolean; usciteDettaglio: Uscita[] }[] = [];

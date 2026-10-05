@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr, proiettaSaldo } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
@@ -232,19 +232,17 @@ async function getData() {
 
   flussi.sort((a, b) => a.data.getTime() - b.data.getTime());
 
-  // Proiezione: saldo nel tempo con sole uscite certe
-  let saldoMinimo = SALDO_INIZIALE;
-  let saldoMinPoint = SALDO_INIZIALE;
-  for (const f of flussi.filter((x) => x.certo)) {
-    saldoMinimo += f.importo;
-    if (saldoMinimo < saldoMinPoint) saldoMinPoint = saldoMinimo;
-  }
-
-  // Proiezione ottimistica: uscite certe + tutte le entrate attese
-  const saldoOttimistico = SALDO_INIZIALE + totaleAtteso + flussi.reduce((s, f) => s + f.importo, 0);
-
   // Flussi nei prossimi 90 giorni — IVA sempre inclusa perché scadenza fissa
   const flussi90 = flussi.filter((f) => f.data <= in90 || f.tipo === "iva");
+
+  // Proiezioni sugli stessi flussi mostrati in timeline: le card corrispondono
+  // sempre alla somma delle righe elencate sotto.
+  const usciteCerte = flussi90.filter((f) => f.certo && f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  const usciteTutte = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  const entrateAttese = flussi90.filter((f) => f.importo > 0).reduce((s, f) => s + f.importo, 0) + totaleAtteso;
+
+  const saldoMinimo = proiettaSaldo(SALDO_INIZIALE, 0, usciteCerte).conservativo;
+  const saldoOttimistico = proiettaSaldo(SALDO_INIZIALE, entrateAttese, usciteTutte).ottimistico;
 
   return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE };
 }

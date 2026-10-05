@@ -19,6 +19,19 @@ export function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Proiezione del saldo in due scenari, con arrotondamento uniforme.
+ *  conservativo = solo le uscite, nessun incasso.
+ *  ottimistico  = uscite più tutti gli incassi attesi, al 100% e nei tempi previsti.
+ *  L'orizzonte temporale lo decide il chiamante filtrando entrate e uscite:
+ *  90 giorni in cassa, fine anno in previsione, simulazione e snapshot. */
+export function proiettaSaldo(saldoIniziale: number, entrateAttese: number, uscite: number) {
+  const r = (n: number) => Math.round(n * 100) / 100;
+  return {
+    conservativo: r(saldoIniziale - uscite),
+    ottimistico: r(saldoIniziale + entrateAttese - uscite),
+  };
+}
+
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);

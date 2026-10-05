@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { formatEuro } from "@/lib/utils";
+import { formatEuro, proiettaSaldo } from "@/lib/utils";
 import type { UscitaFissa } from "@/app/simulazione/page";
 
 const MESI_FULL = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -78,7 +78,10 @@ export default function SimulazioneClient({
   }
 
   const saldoConservativo = righe[righe.length - 1]?.saldo ?? saldoAttuale;
-  const saldoOttimistico  = saldoConservativo + daIncassare + daFatturareWon;
+  // Stessa definizione di previsione, cassa e snapshot: conservativo + incassi attesi.
+  // Il venduto Won non ancora fatturato è uno scenario a parte, non entra qui.
+  const saldoOttimistico = proiettaSaldo(saldoConservativo, daIncassare, 0).ottimistico;
+  const saldoConVenduto  = proiettaSaldo(saldoConservativo, daIncassare + daFatturareWon, 0).ottimistico;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -186,7 +189,13 @@ export default function SimulazioneClient({
           label="Saldo ottimistico dic"
           value={formatEuro(Math.round(saldoOttimistico))}
           color={(saldoOttimistico + fidoBancario) < 0 ? "#ff4444" : "var(--sage)"}
-          note={`+ da incassare + Won ×${Math.round(fattore * 100)}%`}
+          note="se incassi tutto · stessa base di previsione e cassa"
+        />
+        <SaldoCard
+          label="Con venduto da fatturare"
+          value={`~${formatEuro(Math.round(saldoConVenduto))}`}
+          color={(saldoConVenduto + fidoBancario) < 0 ? "#ff4444" : "var(--accent)"}
+          note={`+ Won non ancora fatturato ×${Math.round(fattore * 100)}%`}
         />
       </div>
 
