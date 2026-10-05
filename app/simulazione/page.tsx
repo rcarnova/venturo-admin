@@ -1,6 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
-import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, toDateStr } from "@/lib/utils";
-import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
+import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, toDateStr, calcolaTrimestre } from "@/lib/utils";
+import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
@@ -47,11 +47,24 @@ async function getData() {
   const usciteFisse: UscitaFissa[] = [];
 
   // IVA — debito meno credito acquisti
+  const fattureInForecast = fatture.filter(f =>
+    f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso != null)
+  );
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status === "Pagata") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
+  }
+  // IVA attesa dagli incassi previsti: il trimestre segue la data di incasso
+  for (const f of fattureInForecast) {
+    let d = f.dataIncassoAtteso
+      ? new Date(f.dataIncassoAtteso + "T00:00:00")
+      : (() => { const b = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); b.setDate(b.getDate() + 30); return b; })();
+    if (d < today) d = new Date(today);
+    const trim = calcolaTrimestre(toDateStr(d));
+    if (!trim) continue;
+    ivaPerTrimestre.set(trim, (ivaPerTrimestre.get(trim) ?? 0) + f.iva22);
   }
   // "Da ricevere" esclusa (IVA non ancora pagata), reverse charge escluso (nessuna IVA versata)
   const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
@@ -62,8 +75,8 @@ async function getData() {
     const sc = new Date(y, m - 1, d); sc.setHours(0, 0, 0, 0);
     if (sc < today || sc > fineAnno) continue;
     const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNetta = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
-    const noteCredito = creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
+    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+    const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
     usciteFisse.push({ mese: sc.getMonth(), importo: ivaNetta, label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`, tipo: "iva" });
   }
 

@@ -1,5 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapCliente } from "@/lib/notion";
-import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre, toDateStr } from "@/lib/utils";
+import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre, toDateStr, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
+import { COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import Link from "next/link";
@@ -36,21 +37,25 @@ async function getData() {
 
   const eventi: Evento[] = [];
 
-  // Fatture ricevute con scadenza
+  // Fatture ricevute — stessi stati di cassa e previsione
+  const oggiStr = toDateStr(today);
   for (const f of ricevute) {
-    if (f.status !== "Ricevuta" || !f.scadenza) continue;
-    const d = new Date(f.scadenza);
+    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
+    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
+    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
+    if (!statoOk || !dataRif) continue;
+    const d = new Date(dataRif);
     if (d > in90) continue;
     const diffDays = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     eventi.push({
       id: `fr-${f.id}`,
-      data: f.scadenza,
-      dataDisplay: formatDate(f.scadenza),
+      data: dataRif,
+      dataDisplay: formatDate(dataRif),
       tipo: "pagamento_fornitore",
-      label: f.nome,
+      label: pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome,
       importo: f.importo,
       urgente: diffDays <= 7,
-      href: "/fatture-ricevute?status=Ricevuta",
+      href: f.status ? `/fatture-ricevute?status=${encodeURIComponent(f.status)}` : "/fatture-ricevute",
     });
   }
 
@@ -61,11 +66,15 @@ async function getData() {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  for (const [trimestre, totaleIVA] of Array.from(ivaPerTrimestre)) {
+  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, today.getFullYear());
+  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const scadenzaDate = new Date(y, m - 1, d);
     if (scadenzaDate < today || scadenzaDate > in90) continue;
+    const credito = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
+    const totaleIVA = IVA_VERSAMENTI[trimestre] ?? Math.max(0, Math.round((ivaDebito - credito) * 100) / 100);
     const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     eventi.push({
       id: `iva-${trimestre}`,
@@ -112,7 +121,9 @@ async function getData() {
   }
 
   // Fatture emesse in attesa (da incassare) — senza data di incasso prevista
-  const daIncassare = fatture.filter((f) => f.status === "Inviata");
+  const daIncassare = fatture.filter((f) =>
+    f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso != null)
+  );
 
   eventi.sort((a, b) => a.data.localeCompare(b.data));
 
