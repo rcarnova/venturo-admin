@@ -99,9 +99,12 @@ export async function queryAll(
 }
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
+// REGOLA UNIVOCA — il campo Notion "Importo" è SEMPRE il compenso imponibile:
+// senza rivalsa INPS, senza IVA, al lordo della ritenuta. Mai l'incasso netto.
+// L'incasso in banca è derivato qui: compenso × 1,0608.
 export function mapFattura(page: PageObjectResponse): Fattura {
   const p = page.properties;
-  const importo = getNumber(p, "Importo"); // imponibile (compenso senza rivalsa INPS)
+  const importo = getNumber(p, "Importo"); // compenso imponibile — vedi REGOLA UNIVOCA sopra
   const dataInvio = getDate(p, "Data invio");
   const dataIncasso = getDate(p, "Incassata");
   const dataIncassoAtteso = getDate(p, "Data incasso atteso"); // campo opzionale — sovrascrive +30gg
