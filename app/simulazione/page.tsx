@@ -32,9 +32,11 @@ async function getData() {
 
   const saldoAttuale = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
 
-  // Entrate attese
+  // Entrate attese — "Inviata" + "Da inviare" con dataIncassoAtteso (coerente con cassa e previsione)
   const daIncassare = Math.round(
-    fatture.filter(f => f.status === "Inviata").reduce((s, f) => s + f.incassoNetto, 0)
+    fatture
+      .filter(f => f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso != null))
+      .reduce((s, f) => s + f.incassoNetto, 0)
   );
   const wonDeals = deals.filter(d => d.status === "Won");
   const totaleVenduto = wonDeals.reduce((s, d) => s + d.valore, 0);
@@ -51,7 +53,9 @@ async function getData() {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevute, COSTI_RICORRENTI, ANNO);
+  // "Da ricevere" esclusa (IVA non ancora pagata), reverse charge escluso (nessuna IVA versata)
+  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
+  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
   for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
@@ -70,10 +74,15 @@ async function getData() {
     usciteFisse.push({ mese: d.getMonth(), importo: MUTUO.importoRata, label: "Rata mutuo", tipo: "mutuo" });
   }
 
-  // Fornitori — include fatture da pagare (Ricevuta) e scadute (In ritardo)
+  // Fornitori — da pagare, scadute, attese, e pagate su carta con addebito banca futuro
+  const oggiStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   for (const f of ricevute) {
-    if ((f.status !== "Ricevuta" && f.status !== "In ritardo") || !f.scadenza) continue;
-    const d = new Date(f.scadenza); d.setHours(0, 0, 0, 0);
+    // "Pagata" con data futura = addebito carta noto, non ancora uscito dal conto
+    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
+    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
+    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
+    if (!statoOk || !dataRif) continue;
+    const d = new Date(dataRif); d.setHours(0, 0, 0, 0);
     if (d > fineAnno) continue;
     const dataEffettiva = d < today ? today : d;
     usciteFisse.push({ mese: dataEffettiva.getMonth(), importo: f.importo, label: f.nome, tipo: "fornitore" });
