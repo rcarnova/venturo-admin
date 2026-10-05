@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapCliente } from "@/lib/notion";
-import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre } from "@/lib/utils";
+import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre, toDateStr } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import Link from "next/link";
@@ -69,7 +69,7 @@ async function getData() {
     const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     eventi.push({
       id: `iva-${trimestre}`,
-      data: scadenzaDate.toISOString().split("T")[0],
+      data: toDateStr(scadenzaDate),
       dataDisplay: scadenzaStr,
       tipo: "iva",
       label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`,
@@ -84,7 +84,7 @@ async function getData() {
   if (totRimborsi > 0) {
     eventi.push({
       id: "rimborsi",
-      data: today.toISOString().split("T")[0],
+      data: toDateStr(today),
       dataDisplay: "Da liquidare",
       tipo: "rimborso",
       label: `${note.filter((n) => n.statusRimborso === "Da rimborsare").length} rimborsi spese`,

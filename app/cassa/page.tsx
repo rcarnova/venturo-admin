@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre } from "@/lib/utils";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
@@ -53,15 +53,19 @@ async function getData() {
   );
   const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
-  // Uscite — da pagare (Ricevuta), scadute (In ritardo), attese (Da ricevere)
+  // Uscite — da pagare (Ricevuta), scadute (In ritardo), attese (Da ricevere),
+  // e pagate su carta con addebito in banca ancora futuro
+  const oggiStr = toDateStr(today);
   for (const f of ricevute) {
-    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere";
-    if (!statoOk || !f.scadenza) continue;
-    const d = new Date(f.scadenza);
+    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
+    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
+    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
+    if (!statoOk || !dataRif) continue;
+    const d = new Date(dataRif);
     d.setHours(0, 0, 0, 0);
     const scaduta = d < today;
     const dataEffettiva = scaduta ? new Date(today) : d;
-    const label = scaduta ? `${f.nome} ⚠ scaduta` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome;
+    const label = scaduta ? `${f.nome} ⚠ scaduta` : pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome;
     flussi.push({
       id: `fr-${f.id}`,
       data: dataEffettiva,
@@ -107,7 +111,7 @@ async function getData() {
   for (const f of fattureAttese) {
     const d = dataIncassoAttesaOf(f, today);
     const datePerTrimestre = d < today ? new Date(today) : d;
-    const trim = calcolaTrimestre(datePerTrimestre.toISOString().split("T")[0]);
+    const trim = calcolaTrimestre(toDateStr(datePerTrimestre));
     if (!trim) continue;
     const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
     ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });

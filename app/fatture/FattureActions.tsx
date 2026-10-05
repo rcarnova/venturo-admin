@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Fattura, FatturaStatus, TrimestreIVA } from "@/lib/types";
-import { calcolaTrimestre } from "@/lib/utils";
+import { calcolaTrimestre, toDateStr } from "@/lib/utils";
 
 const STATUSES: FatturaStatus[] = ["Da inviare", "Inviata", "Pagata", "In ritardo"];
 
@@ -27,7 +27,7 @@ export default function FattureActions({ fattura }: { fattura: Fattura }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: Record<string, any> = { id: fattura.id, status };
     if (status === "Pagata" && !fattura.dataIncasso) {
-      const today = new Date().toISOString().split("T")[0];
+      const today = toDateStr(new Date());
       body.dataIncasso = today;
       body.trimestreIVA = calcolaTrimestre(today);
     }

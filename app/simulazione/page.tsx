@@ -1,5 +1,5 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
-import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
+import { scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, toDateStr } from "@/lib/utils";
 import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -75,7 +75,7 @@ async function getData() {
   }
 
   // Fornitori — da pagare, scadute, attese, e pagate su carta con addebito banca futuro
-  const oggiStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const oggiStr = toDateStr(today);
   for (const f of ricevute) {
     // "Pagata" con data futura = addebito carta noto, non ancora uscito dal conto
     const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
@@ -119,7 +119,7 @@ async function getData() {
   // Anticipi soci — solo config.ts (modifica ANTICIPO_SOCI in lib/config.ts)
   const anticipoDefault = anticipiSoci
     .filter(a => { const d = new Date(a.data); d.setHours(0, 0, 0, 0); return d >= today && d <= fineAnno; })
-    .map(a => ({ dataStr: new Date(a.data).toISOString().split("T")[0], importo: a.importo }));
+    .map(a => ({ dataStr: toDateStr(new Date(a.data)), importo: a.importo }));
 
   return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
 }

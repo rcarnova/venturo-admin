@@ -12,6 +12,13 @@ export function formatEuro(amount: number): string {
   }).format(amount);
 }
 
+/** "YYYY-MM-DD" dai componenti locali della data.
+ *  Non usare toISOString(): converte in UTC e con TZ avanti (Europe/Rome)
+ *  restituisce il giorno precedente, spostando trimestri e confronti. */
+export function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -115,7 +122,7 @@ export function calcolaIVACreditoPerTrimestre(
       }
       const lastDay = new Date(anno, m + 1, 0).getDate();
       const d = new Date(anno, m, Math.min(costo.giornoAddebito, lastDay));
-      const trim = calcolaTrimestre(d.toISOString().split("T")[0]);
+      const trim = calcolaTrimestre(toDateStr(d));
       if (!trim) continue;
       credito.set(trim, (credito.get(trim) ?? 0) + ivaRata);
     }
@@ -130,7 +137,7 @@ export function calcolaSaldoDinamico(
   baseImporto: number,
   baseData: string
 ): number {
-  const oggi = new Date().toISOString().split("T")[0]; // solo movimenti già avvenuti
+  const oggi = toDateStr(new Date()); // solo movimenti già avvenuti
 
   const incassi = fatture
     .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso > baseData && f.dataIncasso <= oggi)
