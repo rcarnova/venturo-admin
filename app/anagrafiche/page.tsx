@@ -26,9 +26,11 @@ async function getClienti() {
     return {
       ...c,
       fatt,
+      // Fatturato = compenso imponibile. Incassato e da incassare = cassa reale
+      // (lordo IVA, netto ritenuta), stessa base della dashboard.
       totaleFatturato: fatt.reduce((s, f) => s + f.importo, 0),
-      totaleIncassato: fatt.filter(f => f.status === "Pagata").reduce((s, f) => s + f.importo, 0),
-      daIncassare: fatt.filter(f => f.status === "Inviata").reduce((s, f) => s + f.importo, 0),
+      totaleIncassato: fatt.filter(f => f.status === "Pagata").reduce((s, f) => s + f.incassoNetto, 0),
+      daIncassare: fatt.filter(f => f.status === "Inviata").reduce((s, f) => s + f.incassoNetto, 0),
     };
   }).sort((a, b) => b.totaleFatturato - a.totaleFatturato);
 }

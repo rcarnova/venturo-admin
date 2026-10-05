@@ -24,9 +24,11 @@ async function getData() {
   const clientiArricchiti = clienti
     .map((c) => {
       const fatt = fatturePerCliente.get(c.id) ?? [];
+      // Fatturato = compenso imponibile. Incassato e da incassare = cassa reale
+      // (lordo IVA, netto ritenuta), stessa base della dashboard.
       const totaleFatturato = fatt.reduce((s, f) => s + f.importo, 0);
-      const totaleIncassato = fatt.filter((f) => f.status === "Pagata").reduce((s, f) => s + f.importo, 0);
-      const daIncassare = fatt.filter((f) => f.status === "Inviata").reduce((s, f) => s + f.importo, 0);
+      const totaleIncassato = fatt.filter((f) => f.status === "Pagata").reduce((s, f) => s + f.incassoNetto, 0);
+      const daIncassare = fatt.filter((f) => f.status === "Inviata").reduce((s, f) => s + f.incassoNetto, 0);
       const ultimaFattura = fatt.sort((a, b) => (b.dataInvio ?? "").localeCompare(a.dataInvio ?? ""))[0]?.dataInvio ?? null;
       return { ...c, fatt, totaleFatturato, totaleIncassato, daIncassare, ultimaFattura };
     })
