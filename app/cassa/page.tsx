@@ -244,15 +244,28 @@ async function getData() {
   const saldoMinimo = proiettaSaldo(SALDO_INIZIALE, 0, usciteCerte).conservativo;
   const saldoOttimistico = proiettaSaldo(SALDO_INIZIALE, entrateAttese, usciteTutte).ottimistico;
 
-  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE };
+  // Quando tocca il punto più basso, considerando le sole uscite certe:
+  // sapere se il minimo cade fra una settimana o a dicembre cambia la reazione.
+  let running = SALDO_INIZIALE;
+  let minimo = SALDO_INIZIALE;
+  let dataMinimo: Date | null = null;
+  for (const f of flussi90.filter((x) => x.certo)) {
+    running += f.importo;
+    if (running < minimo) { minimo = running; dataMinimo = f.data; }
+  }
+  const dataMinimoStr = dataMinimo ? dataMinimo.toLocaleDateString("it-IT") : null;
+
+  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE, dataMinimoStr, usciteCerte, nFattureInviate: fattureAttese.filter(f => f.status === "Inviata").length };
 }
 
 export default async function CassaPage() {
-  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale } = await getData();
+  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale, dataMinimoStr, usciteCerte, nFattureInviate } = await getData();
 
   const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
   const liquiditaTotale = saldoAttuale + FIDO_BANCARIO;
-  const alertSaldo = (saldoOttimistico + FIDO_BANCARIO) < 0;
+  // Il fido va confrontato col caso base, non col migliore: e' da quello che ti devi proteggere.
+  const sfondaFidoSempre = (saldoOttimistico + FIDO_BANCARIO) < 0;
+  const sfondaFidoCasoBase = (saldoMinimo + FIDO_BANCARIO) < 0;
 
   // Proiezione a step
   let runningBalance = saldoAttuale;
@@ -265,7 +278,7 @@ export default async function CassaPage() {
     <div>
       <PageHeader
         title="Cassa"
-        subtitle={`Prossimi 90 giorni + scadenze IVA · saldo attuale ${formatEuro(saldoAttuale)}`}
+        subtitle="Prossimi 90 giorni, più le scadenze IVA anche se successive"
       />
       <TabNav tabs={[
         { href: "/cassa", label: "Proiezione flussi", active: true },
@@ -277,10 +290,10 @@ export default async function CassaPage() {
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" tier="reale" />
         <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" tier="reale" />
         <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" tier="reale" />
-        <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note="fatture inviate" tier="impegno" />
-        <SaldoCard label="Uscite certe (90gg)" value={formatEuro(totUscite90)} color="#ffb400" tier="impegno" />
+        <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note={nFattureInviate > 0 ? `${nFattureInviate} inviate + bozze con data` : "tutte bozze con data"} tier="impegno" />
+        <SaldoCard label="Uscite previste" value={formatEuro(totUscite90)} color="#ffb400" note={`di cui ${formatEuro(usciteCerte)} certe`} tier="impegno" />
         <SaldoCard
-          label="Saldo minimo garantito"
+          label="Saldo nel caso peggiore"
           value={formatEuro(saldoMinimo)}
           color={(saldoMinimo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoMinimo + FIDO_BANCARIO) < 2000 ? "#ffb400" : "var(--text)"}
           note={`con fido: ${formatEuro(saldoMinimo + FIDO_BANCARIO)}`}
@@ -309,9 +322,11 @@ export default async function CassaPage() {
         <span><span style={{ color: "#ffb400" }}>●</span> Scenario — simulazione</span>
       </div>
 
-      {alertSaldo && (
-        <div style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: "6px", padding: "0.75rem 1.25rem", marginBottom: "1.5rem", fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "#ff4444" }}>
-          ⚠ Attenzione: il saldo va in negativo anche considerando le entrate attese. Verifica la liquidità.
+      {(sfondaFidoSempre || sfondaFidoCasoBase) && (
+        <div style={{ background: sfondaFidoSempre ? "rgba(255,60,60,0.08)" : "rgba(255,180,0,0.08)", border: `1px solid ${sfondaFidoSempre ? "rgba(255,60,60,0.3)" : "rgba(255,180,0,0.35)"}`, borderRadius: "6px", padding: "0.75rem 1.25rem", marginBottom: "1.5rem", fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: sfondaFidoSempre ? "#ff4444" : "#ffb400" }}>
+          {sfondaFidoSempre
+            ? `⚠ Il fido non basta nemmeno incassando tutto: mancano ${formatEuro(Math.abs(saldoOttimistico + FIDO_BANCARIO))}.`
+            : `⚠ Se gli incassi slittano il fido non basta${dataMinimoStr ? ` dal ${dataMinimoStr}` : ""}: mancano ${formatEuro(Math.abs(saldoMinimo + FIDO_BANCARIO))}. Serve che almeno un incasso arrivi prima.`}
         </div>
       )}
 

@@ -247,6 +247,12 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <section style={{ marginBottom: "2.5rem" }}>
+        {/* Legenda: sopra le card, cosi' si legge prima di interpretare i numeri */}
+        <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginBottom: "1rem" }}>
+          <span><span style={{ color: "#00c864" }}>●</span> Consuntivo — dati certi</span>
+          <span><span style={{ color: "var(--accent)" }}>●</span> Impegni — obbligazioni contratte</span>
+          <span><span style={{ color: "#ffb400" }}>●</span> Scenario — simulazione pipeline</span>
+        </div>
         {/* CONSUNTIVO */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
           <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#00c864", display: "inline-block", flexShrink: 0 }} />
@@ -266,13 +272,15 @@ export default async function DashboardPage() {
         <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
           <StatCard
             label="Da incassare"
-            value={formatEuro(stats.totaleDaIncassare)}
+            value={formatEuro(stats.totaleDaIncassare + stats.totaleDaInviareConData)}
             color="var(--accent)"
             note={
               stats.fattureInviateMesiExtra > 0
                 ? `⚠ include ${stats.fattureInviateMesiExtra} fatt. anni prec.`
+                : stats.totaleDaInviareConData > 0 && stats.totaleDaIncassare > 0
+                ? `${formatEuro(stats.totaleDaIncassare)} inviate · ${formatEuro(stats.totaleDaInviareConData)} bozze con data`
                 : stats.totaleDaInviareConData > 0
-                ? `+ ${formatEuro(stats.totaleDaInviareConData)} bozze con data`
+                ? `tutte bozze con data · nessuna fattura inviata`
                 : "lordo IVA · fatture inviate"
             }
             tier="impegno"
@@ -284,12 +292,6 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Legend */}
-        <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginTop: "0.75rem" }}>
-          <span><span style={{ color: "#00c864" }}>●</span> Consuntivo — dati certi</span>
-          <span><span style={{ color: "var(--accent)" }}>●</span> Impegni — obbligazioni contratte</span>
-          <span><span style={{ color: "#ffb400" }}>●</span> Scenario — simulazione pipeline</span>
-        </div>
       </section>
 
       {/* Pipeline */}
