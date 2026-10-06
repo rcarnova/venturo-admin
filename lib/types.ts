@@ -114,6 +114,7 @@ export interface NotaSpese {
 // ─── PIPELINE SALES ──────────────────────────────────────────────────────────
 export type DealStatus = "Open" | "Won" | "Lost" | "Freeze";
 export type DealProbabilita = "Alta 75-100%" | "Media 40-74%" | "Bassa 0-39%" | null;
+export type DealStadio = "Discovery" | "Proposta inviata" | "Negoziazione" | "Chiusura" | null;
 export type DealFonte = "Passaparola" | "Evento" | "Partner" | "Inbound" | "Altro" | "Cliente" | "Amici" | null;
 
 export interface Deal {
@@ -124,8 +125,8 @@ export interface Deal {
   probabilita: DealProbabilita;
   fonte: DealFonte;
   dataChiusura: string | null;
-  nomeContatto: string | null;
-  ruoloContatto: string | null;
+  stadio: DealStadio;
+  contattoId: string | null;
   clienteId: string | null;
   progettoId: string | null;
 }

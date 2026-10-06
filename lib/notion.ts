@@ -54,8 +54,8 @@ function getUrl(props: Props, key: string): string | null {
 function getDate(props: Props, key: string): string | null {
   return props[key]?.date?.start ?? null;
 }
-function getRelationName(props: Props, key: string): string | null {
-  // returns first relation ID (you can enrich with a follow-up fetch)
+function getRelationId(props: Props, key: string): string | null {
+  // primo ID della relation — il nome va risolto con una query sul db collegato
   return props[key]?.relation?.[0]?.id ?? null;
 }
 function getFormula(props: Props, key: string): number {
@@ -127,8 +127,8 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     dataIncasso,
     dataIncassoAtteso,
     fileFattura: getUrl(p, "File fattura"),
-    cliente: getRelationName(p, "Clienti"),
-    progetto: getRelationName(p, "Progetto"),
+    cliente: getRelationId(p, "Clienti"),
+    progetto: getRelationId(p, "Progetto"),
     createdAt: page.created_time,
   };
 }
@@ -164,7 +164,7 @@ export function mapNotaSpese(page: PageObjectResponse): NotaSpese {
     importo: getNumber(p, "Importo"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categoria: (getSelect(p, "Categoria") as any) ?? "Altro",
-    progetto: getRelationName(p, "Progetto"),
+    progetto: getRelationId(p, "Progetto"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     statusRimborso: (getSelect(p, "Status rimborso") as any) ?? "Da rimborsare",
     file: getUrl(p, "File"),
@@ -196,10 +196,10 @@ export function mapDeal(page: PageObjectResponse): Deal {
     probabilita: getSelect(p, "Probabilità %") as Deal["probabilita"],
     fonte: getSelect(p, "Fonte") as Deal["fonte"],
     dataChiusura: getDate(p, "Data chiusura"),
-    nomeContatto: getRichText(p, "Nome contatto") || null,
-    ruoloContatto: getRichText(p, "Ruolo contatto") || null,
-    clienteId: getRelationName(p, "Cliente collegato"),
-    progettoId: getRelationName(p, "Progetto generato"),
+    stadio: getSelect(p, "Stadio") as import("./types").DealStadio,
+    contattoId: getRelationId(p, "Contatto"),
+    clienteId: getRelationId(p, "Cliente"),
+    progettoId: getRelationId(p, "Progetto generato"),
   };
 }
 
@@ -208,7 +208,7 @@ export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
   return {
     id: page.id,
     nome: getTitle(p, "Fattura"),
-    fornitore: getRelationName(p, "Fornitore"),
+    fornitore: getRelationId(p, "Fornitore"),
     dataFattura: getDate(p, "Data fattura"),
     scadenza: getDate(p, "Scadenza"),
     dataPagamento: getDate(p, "Data pagamento"),
@@ -218,7 +218,7 @@ export function mapFatturaRicevuta(page: PageObjectResponse): FatturaRicevuta {
     reverseCharge: getCheckbox(p, "Reverse charge"), // true = B2B inversione contabile, IVA non pagata al fornitore
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     status: (getSelect(p, "Status fattura") as any) ?? null,
-    progetto: getRelationName(p, "Progetto"),
+    progetto: getRelationId(p, "Progetto"),
     fileFattura: getUrl(p, "File fattura"),
   };
 }

@@ -1,4 +1,4 @@
-import { DB, queryAll, mapDeal, mapFattura } from "@/lib/notion";
+import { DB, notion, queryAll, mapDeal, mapFattura } from "@/lib/notion";
 import { formatEuro } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import type { Deal, DealStatus } from "@/lib/types";
@@ -33,7 +33,7 @@ const PROB_BADGE: Record<string, string> = {
   "Bassa 0-39%": "badge-error",
 };
 
-type DealArricchito = Deal & { fatturato: number };
+type DealArricchito = Deal & { fatturato: number; inBozza: number };
 
 async function getData() {
   const [pipelinePages, fatturePages] = await Promise.all([
@@ -42,13 +42,33 @@ async function getData() {
   ]);
 
   const deals = pipelinePages.map(mapDeal);
+
+  // La relation "Contatto" restituisce un id: il nome sta nel db collegato.
+  const contattiId = Array.from(new Set(deals.map(d => d.contattoId).filter((x): x is string => !!x)));
+  const nomiContatto = new Map<string, string>(
+    await Promise.all(contattiId.map(async (id) => {
+      try {
+        const pg = await notion.pages.retrieve({ page_id: id });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const props = (pg as any).properties ?? {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const titolo = Object.values(props).find((v: any) => v?.type === "title") as any;
+        return [id, titolo?.title?.[0]?.plain_text ?? ""] as [string, string];
+      } catch { return [id, ""] as [string, string]; }
+    }))
+  );
   const fatture = fatturePages.map(mapFattura);
 
-  // Mappa progettoId → totale fatturato (tutte le fatture non annullate)
-  const fatturePerProgetto = new Map<string, number>();
+  // Mappa progettoId → fatturato. "Emesso" conta solo cio' che e' uscito davvero:
+  // una bozza non inviata non e' fatturato, e contarla faceva dire alla pagina
+  // "tutto fatturato" con il 59% ancora da mandare.
+  const emessoPerProgetto = new Map<string, number>();
+  const bozzePerProgetto = new Map<string, number>();
   for (const f of fatture) {
     if (!f.progetto) continue;
-    fatturePerProgetto.set(f.progetto, (fatturePerProgetto.get(f.progetto) ?? 0) + f.importo);
+    const target = (f.status === "Inviata" || f.status === "Pagata" || f.status === "In ritardo")
+      ? emessoPerProgetto : bozzePerProgetto;
+    target.set(f.progetto, (target.get(f.progetto) ?? 0) + f.importo);
   }
 
   const open = deals.filter((d) => d.status === "Open");
@@ -68,14 +88,18 @@ async function getData() {
   // Arricchisci i Won deals con il fatturato collegato
   const wonArricchiti: DealArricchito[] = won.map((d) => ({
     ...d,
-    fatturato: d.progettoId ? (fatturePerProgetto.get(d.progettoId) ?? 0) : 0,
+    fatturato: d.progettoId ? (emessoPerProgetto.get(d.progettoId) ?? 0) : 0,
+    inBozza: d.progettoId ? (bozzePerProgetto.get(d.progettoId) ?? 0) : 0,
   }));
 
   const totaleFatturatoWon = wonArricchiti.reduce((s, d) => s + d.fatturato, 0);
+  const totaleInBozza = wonArricchiti.reduce((s, d) => s + d.inBozza, 0);
   const totaleDaFatturare = totaleWon - totaleFatturatoWon;
 
   const dealsChiusi = won.length + lost.length;
-  const conversioneRate = dealsChiusi > 0 ? Math.round((won.length / dealsChiusi) * 100) : null;
+  // Senza nemmeno un deal perso il rapporto e' sempre 100%: non misura la
+  // conversione, misura solo che i persi non vengono registrati.
+  const conversioneRate = lost.length > 0 ? Math.round((won.length / dealsChiusi) * 100) : null;
 
   const byChiusura = (a: Deal, b: Deal) => {
     if (!a.dataChiusura && !b.dataChiusura) return 0;
@@ -96,7 +120,7 @@ async function getData() {
     grouped,
     totaleOpen, totaleWon, totaleLost,
     pipelinePesata, conversioneRate,
-    totaleFatturatoWon, totaleDaFatturare,
+    totaleFatturatoWon, totaleDaFatturare, totaleInBozza, nomiContatto,
     open, won, lost,
   };
 }
@@ -106,7 +130,7 @@ export default async function PipelinePage() {
     grouped,
     totaleOpen, totaleWon,
     pipelinePesata, conversioneRate,
-    totaleFatturatoWon, totaleDaFatturare,
+    totaleFatturatoWon, totaleDaFatturare, totaleInBozza, nomiContatto,
     open, won, lost,
   } = await getData();
 
@@ -140,12 +164,12 @@ export default async function PipelinePage() {
       </div>
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem", marginBottom: "0.75rem" }}>
         <StatCard label="Venduto (Won)" value={formatEuro(totaleWon)} color="var(--sage)" note={`${won.length} deal chiusi`} />
-        <StatCard label="Fatturato" value={formatEuro(totaleFatturatoWon)} color="var(--text)" note="fatture emesse collegate" />
+        <StatCard label="Fatturato" value={formatEuro(totaleFatturatoWon)} color="var(--text)" note="solo inviate e pagate" />
         <StatCard
           label="Da fatturare"
           value={formatEuro(Math.max(0, totaleDaFatturare))}
           color={totaleDaFatturare > 0 ? "#ffb400" : "var(--sage)"}
-          note={totaleDaFatturare <= 0 ? "tutto fatturato ✓" : "ancora da emettere"}
+          note={totaleInBozza > 0 ? `${formatEuro(totaleInBozza)} gia' in bozza, da inviare` : totaleDaFatturare <= 0 ? "tutto fatturato ✓" : "ancora da emettere"}
         />
       </div>
 
@@ -190,7 +214,7 @@ export default async function PipelinePage() {
                     </thead>
                     <tbody>
                       {deals.map((d) => (
-                        <DealRow key={d.id} deal={d} showFatturazione={isWon} />
+                        <DealRow key={d.id} deal={d} showFatturazione={isWon} nome={d.contattoId ? (nomiContatto.get(d.contattoId) ?? "") : ""} />
                       ))}
                     </tbody>
                   </table>
@@ -223,7 +247,7 @@ function FatturatoBar({ fatturato, totale }: { fatturato: number; totale: number
   );
 }
 
-function DealRow({ deal, showFatturazione }: { deal: Deal | DealArricchito; showFatturazione: boolean }) {
+function DealRow({ deal, showFatturazione, nome }: { deal: Deal | DealArricchito; showFatturazione: boolean; nome: string }) {
   const chiusura = deal.dataChiusura
     ? new Date(deal.dataChiusura).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })
     : null;
@@ -258,14 +282,10 @@ function DealRow({ deal, showFatturazione }: { deal: Deal | DealArricchito; show
     <tr>
       <td style={{ fontWeight: 500, fontSize: "0.82rem" }}>{deal.opportunita}</td>
       <td className="col-hide-mobile" style={{ fontSize: "0.78rem", color: "var(--ink-300)" }}>
-        {deal.nomeContatto ? (
-          <>
-            {deal.nomeContatto}
-            {deal.ruoloContatto && (
-              <span style={{ color: "var(--muted)", fontSize: "0.68rem", display: "block" }}>{deal.ruoloContatto}</span>
-            )}
-          </>
-        ) : "—"}
+        {nome || "—"}
+        {deal.stadio && (
+          <span style={{ color: "var(--muted)", fontSize: "0.68rem", display: "block" }}>{deal.stadio}</span>
+        )}
       </td>
       <td>
         <span className="num" style={{ fontWeight: 600, color: deal.status === "Won" ? "var(--sage)" : deal.status === "Lost" ? "var(--muted)" : "var(--text)" }}>
