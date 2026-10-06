@@ -19,7 +19,7 @@ async function getData() {
   // IVA a debito per trimestre (tutte le annate)
   const debitoPerTrimestre = new Map<string, ReturnType<typeof mapFattura>[]>();
   for (const f of fatture) {
-    if (!f.trimestreIVA || f.status !== "Pagata") continue;
+    if (!f.trimestreIVA || f.status === "Da inviare") continue;
     if (!debitoPerTrimestre.has(f.trimestreIVA)) debitoPerTrimestre.set(f.trimestreIVA, []);
     debitoPerTrimestre.get(f.trimestreIVA)!.push(f);
   }
@@ -31,15 +31,9 @@ async function getData() {
   // serve pianificare: il Q4 vale piu' di tutti i trimestri chiusi insieme.
   const debitoStimatoPerTrimestre = new Map<string, { nome: string; importo: number; iva22: number; dataAttesa: string }[]>();
   for (const f of fatture) {
-    if (!(f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso))) continue;
-    let d = f.dataIncassoAtteso
-      ? new Date(f.dataIncassoAtteso + "T00:00:00")
-      : (() => { const b = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); b.setDate(b.getDate() + 30); return b; })();
-    if (d < today) d = new Date(today);
-    const trim = calcolaTrimestre(toDateStr(d));
-    if (!trim) continue;
-    if (!debitoStimatoPerTrimestre.has(trim)) debitoStimatoPerTrimestre.set(trim, []);
-    debitoStimatoPerTrimestre.get(trim)!.push({ nome: f.nome, importo: f.importo, iva22: f.iva22, dataAttesa: toDateStr(d) });
+    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
+    if (!debitoStimatoPerTrimestre.has(f.trimestreIVA)) debitoStimatoPerTrimestre.set(f.trimestreIVA, []);
+    debitoStimatoPerTrimestre.get(f.trimestreIVA)!.push({ nome: f.nome, importo: f.importo, iva22: f.iva22, dataAttesa: f.dataInvio ?? "" });
   }
 
   // Credito IVA calcolato per ogni anno presente nei dati
@@ -130,7 +124,7 @@ export default async function ReportIVAPage() {
     <div>
       <PageHeader
         title="Report IVA"
-        subtitle="Regime di cassa — liquidazione trimestrale con compensazione credito acquisti"
+        subtitle="Liquidazione trimestrale — IVA esigibile alla data fattura, credito acquisti in compensazione"
       />
 
       {/* Riepilogo anno corrente */}

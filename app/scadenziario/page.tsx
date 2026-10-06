@@ -62,7 +62,7 @@ async function getData() {
   // Scadenze IVA calcolate
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
-    if (f.trimestreIVA && f.status === "Pagata") {
+    if (f.trimestreIVA && f.status !== "Da inviare") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }

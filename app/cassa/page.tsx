@@ -105,20 +105,19 @@ async function getData() {
   const ANNO_CORRENTE = today.getFullYear();
   const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
   for (const f of fatture) {
-    if (f.trimestreIVA && f.status === "Pagata") {
+    if (f.trimestreIVA && f.status !== "Da inviare") {
       const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
       ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
     }
   }
   // IVA attesa da fatture Inviata — usa dataIncassoAtteso se presente, altrimenti +30gg
   // EDGE-06: se la data prevista è nel passato, usa oggi per il trimestre (evita Q già chiusi)
+  // Solo le bozze: una volta emessa la fattura il debito e' certo ed e' gia'
+  // contato sopra. Il trimestre segue la data fattura prevista, non l'incasso.
   for (const f of fattureAttese) {
-    const d = dataIncassoAttesaOf(f, today);
-    const datePerTrimestre = d < today ? new Date(today) : d;
-    const trim = calcolaTrimestre(toDateStr(datePerTrimestre));
-    if (!trim) continue;
-    const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
-    ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });
+    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
+    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
+    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
   }
   const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
   const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO_CORRENTE);

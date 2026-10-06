@@ -52,19 +52,14 @@ async function getData() {
   );
   const ivaPerTrimestre = new Map<string, number>();
   for (const f of fatture) {
-    if (f.trimestreIVA && f.status === "Pagata") {
+    if (f.trimestreIVA && f.status !== "Da inviare") {
       ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
     }
   }
-  // IVA attesa dagli incassi previsti: il trimestre segue la data di incasso
+  // IVA attesa dalle sole bozze: il trimestre segue la data fattura prevista.
   for (const f of fattureInForecast) {
-    let d = f.dataIncassoAtteso
-      ? new Date(f.dataIncassoAtteso + "T00:00:00")
-      : (() => { const b = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); b.setDate(b.getDate() + 30); return b; })();
-    if (d < today) d = new Date(today);
-    const trim = calcolaTrimestre(toDateStr(d));
-    if (!trim) continue;
-    ivaPerTrimestre.set(trim, (ivaPerTrimestre.get(trim) ?? 0) + f.iva22);
+    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
+    ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
   }
   // "Da ricevere" esclusa (IVA non ancora pagata), reverse charge escluso (nessuna IVA versata)
   const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);

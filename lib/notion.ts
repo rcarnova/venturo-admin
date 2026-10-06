@@ -108,7 +108,11 @@ export function mapFattura(page: PageObjectResponse): Fattura {
   const dataInvio = getDate(p, "Data invio");
   const dataIncasso = getDate(p, "Incassata");
   const dataIncassoAtteso = getDate(p, "Data incasso atteso"); // campo opzionale — sovrascrive +30gg
-  const trimestreIVA = dataIncasso ? calcolaTrimestre(dataIncasso) : null;
+  // L'IVA segue la DATA FATTURA, non l'incasso: se la fattura e' emessa prima
+  // del pagamento, l'operazione si considera effettuata alla data della fattura
+  // (art. 6 c.4 DPR 633/72). Il regime di cassa riguarda il reddito, non l'IVA;
+  // l'"IVA per cassa" e' un regime opzionale distinto, qui non adottato.
+  const trimestreIVA = dataInvio ? calcolaTrimestre(dataInvio) : null;
   const baseIva = importo * 1.04; // imponibile IVA = compenso + INPS rivalsa 4%
   const iva22 = Math.round(baseIva * 0.22 * 100) / 100;
   const ritenuta = Math.round(baseIva * 0.20 * 100) / 100; // 20% su compenso + INPS rivalsa (base imponibile IVA, art. 25 DPR 600/73)

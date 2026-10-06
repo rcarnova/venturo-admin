@@ -42,7 +42,7 @@ export async function GET() {
     const today = new Date();
     const ivaPerTrimestre = new Set<string>();
     for (const f of fatture) {
-      if (f.trimestreIVA && f.status === "Pagata") ivaPerTrimestre.add(f.trimestreIVA);
+      if (f.trimestreIVA && f.status !== "Da inviare") ivaPerTrimestre.add(f.trimestreIVA);
     }
     const scadenzeImminenti = Array.from(ivaPerTrimestre).filter((trimestre) => {
       const scadenzaStr = scadenzaVersamentoIVA(trimestre);

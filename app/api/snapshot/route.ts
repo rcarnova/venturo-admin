@@ -78,20 +78,17 @@ export async function GET(req: NextRequest) {
   // IVA
   const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
   for (const f of fatture) {
-    if (f.trimestreIVA && f.status === "Pagata") {
+    if (f.trimestreIVA && f.status !== "Da inviare") {
       const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
       ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
     }
   }
+  // Solo le bozze: una volta emessa la fattura il debito e' certo ed e' gia'
+  // contato sopra. Il trimestre segue la data fattura, non l'incasso.
   for (const f of fattureInForecast) {
-    let d: Date;
-    if (f.dataIncassoAtteso) d = new Date(f.dataIncassoAtteso + "T00:00:00");
-    else { d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); d.setDate(d.getDate() + 30); }
-    if (d < today) d = new Date(today);
-    const trim = calcolaTrimestre(toDateStr(d));
-    if (!trim) continue;
-    const prev = ivaPerTrimestre.get(trim) ?? { certo: 0, atteso: 0 };
-    ivaPerTrimestre.set(trim, { ...prev, atteso: prev.atteso + f.iva22 });
+    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
+    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
+    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
   }
   const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
   const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
