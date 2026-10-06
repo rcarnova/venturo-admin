@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
 import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr, proiettaSaldo } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -232,8 +233,11 @@ async function getData() {
 
   flussi.sort((a, b) => a.data.getTime() - b.data.getTime());
 
-  // Flussi nei prossimi 90 giorni — IVA sempre inclusa perché scadenza fissa
-  const flussi90 = flussi.filter((f) => f.data <= in90 || f.tipo === "iva");
+  // Flussi nei prossimi 90 giorni — l'IVA entra comunque, la scadenza è fissa
+  // e va vista anche se cade oltre la finestra: oltre90 la marca in tabella.
+  const flussi90 = flussi
+    .filter((f) => f.data <= in90 || f.tipo === "iva")
+    .map((f) => ({ ...f, oltre90: f.data > in90 }));
 
   // Proiezioni sugli stessi flussi mostrati in timeline: le card corrispondono
   // sempre alla somma delle righe elencate sotto.
@@ -350,12 +354,13 @@ export default async function CassaPage() {
       {/* Timeline flussi */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          Proiezione flussi — prossimi 90 giorni
+          Proiezione flussi
         </div>
         <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
         <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--font-mono)", fontSize: "0.52rem", color: "var(--muted-2)" }}>
           <span style={{ borderLeft: "2px solid rgba(0,200,100,0.5)", paddingLeft: "0.35rem" }}>incasso stimato</span>
-          <span style={{ borderLeft: "2px solid rgba(255,60,60,0.4)", paddingLeft: "0.35rem" }}>uscita certa</span>
+          <span style={{ borderLeft: "2px solid rgba(255,60,60,0.45)", paddingLeft: "0.35rem" }}>uscita certa</span>
+          <span style={{ borderLeft: "2px solid rgba(255,180,0,0.45)", paddingLeft: "0.35rem" }}>uscita prevista</span>
         </div>
       </div>
 
@@ -384,11 +389,27 @@ export default async function CassaPage() {
                 <td></td>
                 <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
-              {steps.map((s) => (
-                <tr key={s.id} style={
-                  s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } :
-                  s.importo > 0 ? { background: "rgba(0,200,100,0.025)", boxShadow: "inset 2px 0 0 rgba(0,200,100,0.35)" } : {}
-                }>
+              {steps.map((s, i) => {
+                const primaOltre90 = s.oltre90 && !steps[i - 1]?.oltre90;
+                const bordo = s.importo > 0
+                  ? "inset 2px 0 0 rgba(0,200,100,0.35)"
+                  : s.certo
+                  ? "inset 2px 0 0 rgba(255,60,60,0.45)"
+                  : "inset 2px 0 0 rgba(255,180,0,0.45)";
+                return (
+                <Fragment key={s.id}>
+                {primaOltre90 && (
+                  <tr>
+                    <td colSpan={5} style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", letterSpacing: "0.06em", textTransform: "uppercase", background: "var(--surface-3)", padding: "0.4rem 0.75rem", borderTop: "1px solid var(--border)" }}>
+                      ↓ oltre i 90 giorni — scadenze IVA, mostrate perché la data è fissa
+                    </td>
+                  </tr>
+                )}
+                <tr style={{
+                  ...(s.saldo < 0 ? { background: "rgba(255,60,60,0.03)" } : s.importo > 0 ? { background: "rgba(0,200,100,0.025)" } : {}),
+                  boxShadow: bordo,
+                  ...(s.oltre90 ? { opacity: 0.62 } : {}),
+                }}>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{s.dataStr}</td>
                   <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{s.label}</td>
                   <td className="col-hide-mobile">
@@ -407,7 +428,8 @@ export default async function CassaPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                </Fragment>
+              );})}
             </tbody>
           </table>
           </div>
