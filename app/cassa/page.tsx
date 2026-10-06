@@ -16,6 +16,9 @@ type Flusso = {
   importo: number;
   tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci" | "ritenuta" | "abbonamento";
   certo: boolean;
+  /** Uscita che decidiamo noi: nessuna controparte la reclama, nessuna scadenza
+   *  di legge. Rinviabile in base alla cassa, quindi fuori dal pavimento. */
+  discrezionale?: boolean;
 };
 
 async function getData() {
@@ -172,6 +175,7 @@ async function getData() {
       importo: -a.importo,
       tipo: "anticipo_soci",
       certo: true,
+      discrezionale: true,
     });
   });
 
@@ -241,11 +245,17 @@ async function getData() {
 
   // Proiezioni sugli stessi flussi mostrati in timeline: le card corrispondono
   // sempre alla somma delle righe elencate sotto.
-  const usciteCerte = flussi90.filter((f) => f.certo && f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  // Tre nature diverse: vincolate (qualcuno le reclama a una data fissa),
+  // discrezionali (decidiamo noi quando), previste (attese ma non confermate).
+  const usciteVincolate = flussi90.filter((f) => f.certo && !f.discrezionale && f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  const usciteDiscrezionali = flussi90.filter((f) => f.discrezionale && f.importo < 0).reduce((s, f) => s - f.importo, 0);
   const usciteTutte = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  const uscitePreviste = flussi90.filter((f) => !f.certo && f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  const uscitePrevisteOltre90 = flussi90.filter((f) => !f.certo && f.importo < 0 && f.oltre90).reduce((s, f) => s - f.importo, 0);
   const entrateAttese = flussi90.filter((f) => f.importo > 0).reduce((s, f) => s + f.importo, 0) + totaleAtteso;
 
-  const saldoMinimo = proiettaSaldo(SALDO_INIZIALE, 0, usciteCerte).conservativo;
+  // Il pavimento e' cio' che devi coprire comunque: gli anticipi non ci entrano.
+  const saldoVincoli = proiettaSaldo(SALDO_INIZIALE, 0, usciteVincolate).conservativo;
   const saldoOttimistico = proiettaSaldo(SALDO_INIZIALE, entrateAttese, usciteTutte).ottimistico;
 
   // Quando tocca il punto più basso, considerando le sole uscite certe:
@@ -253,23 +263,22 @@ async function getData() {
   let running = SALDO_INIZIALE;
   let minimo = SALDO_INIZIALE;
   let dataMinimo: Date | null = null;
-  for (const f of flussi90.filter((x) => x.certo)) {
+  for (const f of flussi90.filter((x) => x.certo && !x.discrezionale)) {
     running += f.importo;
     if (running < minimo) { minimo = running; dataMinimo = f.data; }
   }
   const dataMinimoStr = dataMinimo ? dataMinimo.toLocaleDateString("it-IT") : null;
 
-  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale: SALDO_INIZIALE, dataMinimoStr, usciteCerte, nFattureInviate: fattureAttese.filter(f => f.status === "Inviata").length };
+  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale: SALDO_INIZIALE, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate: fattureAttese.filter(f => f.status === "Inviata").length };
 }
 
 export default async function CassaPage() {
-  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoMinimo, saldoOttimistico, saldoAttuale, dataMinimoStr, usciteCerte, nFattureInviate } = await getData();
+  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate } = await getData();
 
-  const totUscite90 = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s + Math.abs(f.importo), 0);
   const liquiditaTotale = saldoAttuale + FIDO_BANCARIO;
   // Il fido va confrontato col caso base, non col migliore: e' da quello che ti devi proteggere.
   const sfondaFidoSempre = (saldoOttimistico + FIDO_BANCARIO) < 0;
-  const sfondaFidoCasoBase = (saldoMinimo + FIDO_BANCARIO) < 0;
+  const sfondaFidoCasoBase = (saldoVincoli + FIDO_BANCARIO) < 0;
 
   // Proiezione a step
   let runningBalance = saldoAttuale;
@@ -295,12 +304,14 @@ export default async function CassaPage() {
         <SaldoCard label="Fido bancario" value={formatEuro(FIDO_BANCARIO)} color="var(--muted)" note="linea di credito disponibile" tier="reale" />
         <SaldoCard label="Liquidità totale" value={formatEuro(liquiditaTotale)} color="var(--accent)" note="saldo + fido" tier="reale" />
         <SaldoCard label="Entrate attese" value={formatEuro(totaleAttesoAll)} color="#00c864" note={nFattureInviate > 0 ? `${nFattureInviate} inviate + bozze con data` : "tutte bozze con data"} tier="impegno" />
-        <SaldoCard label="Uscite previste" value={formatEuro(totUscite90)} color="#ffb400" note={`di cui ${formatEuro(usciteCerte)} certe`} tier="impegno" />
+        <SaldoCard label="Uscite vincolate" value={formatEuro(usciteVincolate)} color="#ffb400" note="IVA, fornitori, mutuo, ritenute" tier="impegno" />
+        <SaldoCard label="Anticipi soci" value={formatEuro(usciteDiscrezionali)} color="var(--accent)" note="rinviabili in base alla cassa" tier="scenario" />
+        <SaldoCard label="Uscite previste" value={formatEuro(uscitePreviste)} color="var(--muted)" note={uscitePrevisteOltre90 > 0 ? `non confermate · ${formatEuro(uscitePrevisteOltre90)} oltre i 90gg` : "non confermate"} tier="scenario" />
         <SaldoCard
-          label="Saldo nel caso peggiore"
-          value={formatEuro(saldoMinimo)}
-          color={(saldoMinimo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoMinimo + FIDO_BANCARIO) < 2000 ? "#ffb400" : "var(--text)"}
-          note={`con fido: ${formatEuro(saldoMinimo + FIDO_BANCARIO)}`}
+          label="Coprendo i soli vincoli"
+          value={formatEuro(saldoVincoli)}
+          color={(saldoVincoli + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoVincoli + FIDO_BANCARIO) < 2000 ? "#ffb400" : "var(--text)"}
+          note={`con fido: ${formatEuro(saldoVincoli + FIDO_BANCARIO)}${dataMinimoStr ? ` · minimo il ${dataMinimoStr}` : ""}`}
           tier="impegno"
         />
         <SaldoCard
@@ -330,7 +341,7 @@ export default async function CassaPage() {
         <div style={{ background: sfondaFidoSempre ? "rgba(255,60,60,0.08)" : "rgba(255,180,0,0.08)", border: `1px solid ${sfondaFidoSempre ? "rgba(255,60,60,0.3)" : "rgba(255,180,0,0.35)"}`, borderRadius: "6px", padding: "0.75rem 1.25rem", marginBottom: "1.5rem", fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: sfondaFidoSempre ? "#ff4444" : "#ffb400" }}>
           {sfondaFidoSempre
             ? `⚠ Il fido non basta nemmeno incassando tutto: mancano ${formatEuro(Math.abs(saldoOttimistico + FIDO_BANCARIO))}.`
-            : `⚠ Se gli incassi slittano il fido non basta${dataMinimoStr ? ` dal ${dataMinimoStr}` : ""}: mancano ${formatEuro(Math.abs(saldoMinimo + FIDO_BANCARIO))}. Serve che almeno un incasso arrivi prima.`}
+            : `⚠ Anche rinviando gli anticipi soci, il fido non basta a coprire gli impegni vincolati${dataMinimoStr ? ` dal ${dataMinimoStr}` : ""}: mancano ${formatEuro(Math.abs(saldoVincoli + FIDO_BANCARIO))}.`}
         </div>
       )}
 
@@ -361,6 +372,7 @@ export default async function CassaPage() {
           <span style={{ borderLeft: "2px solid rgba(0,200,100,0.5)", paddingLeft: "0.35rem" }}>incasso stimato</span>
           <span style={{ borderLeft: "2px solid rgba(255,60,60,0.45)", paddingLeft: "0.35rem" }}>uscita certa</span>
           <span style={{ borderLeft: "2px solid rgba(255,180,0,0.45)", paddingLeft: "0.35rem" }}>uscita prevista</span>
+          <span style={{ borderLeft: "2px solid var(--accent)", paddingLeft: "0.35rem" }}>discrezionale</span>
         </div>
       </div>
 
@@ -393,6 +405,8 @@ export default async function CassaPage() {
                 const primaOltre90 = s.oltre90 && !steps[i - 1]?.oltre90;
                 const bordo = s.importo > 0
                   ? "inset 2px 0 0 rgba(0,200,100,0.35)"
+                  : s.discrezionale
+                  ? "inset 2px 0 0 var(--accent)"
                   : s.certo
                   ? "inset 2px 0 0 rgba(255,60,60,0.45)"
                   : "inset 2px 0 0 rgba(255,180,0,0.45)";
