@@ -15,7 +15,16 @@ export const FIDO_BANCARIO = 5_000;
 // Sovrascrive il calcolo automatico (utile quando alcune spese non sono detraibili).
 // Formato: "Q1 2026" | "Q2 2026" | "Q3 2026" | "Q4 2026" → importo netto da versare
 export const IVA_VERSAMENTI: Record<string, number> = {
-  "Q2 2026": 4_284.05, // confermato dal commercialista — pagato 25/08/2026 (rimborsato a Massimo)
+  "Q2 2026": 4_284.05, // confermato dal commercialista
+};
+
+// ─── IVA — versamenti effettivi ───────────────────────────────────────────────
+// Data del pagamento F24, non la scadenza. Finche' un trimestre non e' qui, il
+// report lo mostra come "da confermare" anche se la scadenza e' passata: una
+// scadenza trascorsa non prova che il versamento sia avvenuto.
+// Formato: "Q2 2026" → "2026-08-25"
+export const IVA_VERSATE: Record<string, string> = {
+  "Q2 2026": "2026-08-25", // rimborsato a Massimo
 };
 
 // ─── Mutuo ───────────────────────────────────────────────────────────────────

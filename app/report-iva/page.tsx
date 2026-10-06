@@ -1,6 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
+import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr } from "@/lib/utils";
+import { COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE } from "@/lib/config";
 import { PageHeader } from "@/components/shared/PageHeader";
 import type { TrimestreIVA } from "@/lib/types";
 
@@ -24,10 +24,26 @@ async function getData() {
     debitoPerTrimestre.get(f.trimestreIVA)!.push(f);
   }
 
-  const today = new Date();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  // Debito stimato dagli incassi previsti. Senza questo un trimestre ancora
+  // senza incassi non compare affatto, e il report tace proprio sul periodo che
+  // serve pianificare: il Q4 vale piu' di tutti i trimestri chiusi insieme.
+  const debitoStimatoPerTrimestre = new Map<string, { nome: string; importo: number; iva22: number; dataAttesa: string }[]>();
+  for (const f of fatture) {
+    if (!(f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso))) continue;
+    let d = f.dataIncassoAtteso
+      ? new Date(f.dataIncassoAtteso + "T00:00:00")
+      : (() => { const b = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); b.setDate(b.getDate() + 30); return b; })();
+    if (d < today) d = new Date(today);
+    const trim = calcolaTrimestre(toDateStr(d));
+    if (!trim) continue;
+    if (!debitoStimatoPerTrimestre.has(trim)) debitoStimatoPerTrimestre.set(trim, []);
+    debitoStimatoPerTrimestre.get(trim)!.push({ nome: f.nome, importo: f.importo, iva22: f.iva22, dataAttesa: toDateStr(d) });
+  }
 
   // Credito IVA calcolato per ogni anno presente nei dati
-  const anniUnici = Array.from(new Set([ANNO, ...Array.from(debitoPerTrimestre.keys()).map(t => Number(t.split(" ")[1]))]));
+  const anniUnici = Array.from(new Set([ANNO, ...Array.from(debitoPerTrimestre.keys()).map(t => Number(t.split(" ")[1])), ...Array.from(debitoStimatoPerTrimestre.keys()).map(t => Number(t.split(" ")[1]))]));
   const creditoTotalePerAnno     = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
   const creditoFatturePerAnno    = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
   const creditoRicorrentiPerAnno = new Map<number, ReturnType<typeof calcolaIVACreditoPerTrimestre>>();
@@ -40,6 +56,8 @@ async function getData() {
   }
 
   const buildTrimestre = (trimestre: string, fatt: ReturnType<typeof mapFattura>[]) => {
+    const stimate = debitoStimatoPerTrimestre.get(trimestre) ?? [];
+    const ivaDebitoStimato = Math.round(stimate.reduce((s, f) => s + f.iva22, 0) * 100) / 100;
     const annoT = Number(trimestre.split(" ")[1]);
     const ivaCreditoMap         = creditoTotalePerAnno.get(annoT)!;
     const ivaCreditoDaFattureMap     = creditoFatturePerAnno.get(annoT)!;
@@ -49,13 +67,17 @@ async function getData() {
     const ivaCredito           = Math.round((ivaCreditoMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaCreditoFatture    = Math.round((ivaCreditoDaFattureMap.get(trimestre) ?? 0) * 100) / 100;
     const ivaCreditoRicorrenti = Math.round((ivaCreditoDaRicorrentiMap.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNettaCalcolata    = Math.max(0, Math.round((ivaDebito - ivaCredito) * 100) / 100);
+    const ivaNettaCalcolata    = Math.max(0, Math.round((ivaDebito + ivaDebitoStimato - ivaCredito) * 100) / 100);
     const ivaNettaDefinitiva   = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
     const hasOverride          = trimestre in IVA_VERSAMENTI;
+    const deltaOverride        = hasOverride ? Math.round((ivaNettaDefinitiva - ivaNettaCalcolata) * 100) / 100 : 0;
     const scadenzaStr          = scadenzaVersamentoIVA(trimestre);
     const [d, m, y]            = scadenzaStr.split("/").map(Number);
     const scadenzaDate         = new Date(y, m - 1, d);
-    const versata              = scadenzaDate < today;
+    // Versata solo se risulta un pagamento: la scadenza passata non lo prova.
+    const dataVersamento       = IVA_VERSATE[trimestre] ?? null;
+    const versata              = dataVersamento !== null;
+    const scadutaNonConfermata = !versata && scadenzaDate < today;
     const diffDays             = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     return {
       trimestre: trimestre as TrimestreIVA,
@@ -64,14 +86,16 @@ async function getData() {
       scadenzaStr, scadenzaDate,
       ivaDebito, ivaCredito, ivaCreditoFatture, ivaCreditoRicorrenti,
       ivaNetta: ivaNettaDefinitiva, ivaNettaCalcolata,
-      hasOverride, versata,
+      hasOverride, deltaOverride, versata, dataVersamento, scadutaNonConfermata,
+      ivaDebitoStimato, stimate,
       urgent: !versata && diffDays <= 15,
       fatture: fatt,
     };
   };
 
-  const allTrimestri = Array.from(debitoPerTrimestre.entries())
-    .map(([t, f]) => buildTrimestre(t, f))
+  const tuttiTrimestri = new Set([...Array.from(debitoPerTrimestre.keys()), ...Array.from(debitoStimatoPerTrimestre.keys())]);
+  const allTrimestri = Array.from(tuttiTrimestri)
+    .map((t) => buildTrimestre(t, debitoPerTrimestre.get(t) ?? []))
     .sort((a, b) => a.scadenzaDate.getTime() - b.scadenzaDate.getTime());
 
   const trimestri        = allTrimestri.filter(t => t.anno === ANNO);
@@ -114,9 +138,9 @@ export default async function ReportIVAPage() {
         {ANNO}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
-        <StatCard label="IVA netta versata" value={formatEuro(totaleIVAVersata)} color="#00c864" note={`${ANNO} · trimestri chiusi`} />
+        <StatCard label="IVA netta versata" value={formatEuro(totaleIVAVersata)} color="#00c864" note={`${ANNO} · versamenti registrati`} />
         <StatCard label="IVA credito acquisti" value={formatEuro(totaleCredito)} color="var(--sage)" note="fatture ricevute + abbonamenti" />
-        <StatCard label="IVA netta da versare" value={formatEuro(totaleIVADaVersare)} color={totaleIVADaVersare > 0 ? "var(--accent)" : "var(--muted)"} note="debito − credito trimestri aperti" />
+        <StatCard label="IVA netta da versare" value={formatEuro(totaleIVADaVersare)} color={totaleIVADaVersare > 0 ? "var(--accent)" : "var(--muted)"} note="include l'IVA sugli incassi previsti" />
         {storicoTrimestri.length > 0 && (
           <StatCard label="Versato anni prec." value={formatEuro(totaleStoricoVersato)} color="var(--muted)" note={`${storicoTrimestri.length} trim. — dati Notion`} />
         )}
@@ -150,6 +174,9 @@ export default async function ReportIVAPage() {
                 </div>
                 <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
                   IVA debito: <span className="num" style={{ color: "var(--accent)" }}>{formatEuro(t.ivaDebito)}</span>
+                  {t.ivaDebitoStimato > 0 && (
+                    <span style={{ color: "var(--muted-2)" }}> · <span className="num" style={{ color: "#ffb400" }}>~+{formatEuro(t.ivaDebitoStimato)}</span> da incassi previsti</span>
+                  )}
                 </div>
                 {t.ivaCredito > 0 && (
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--muted)" }}>
@@ -163,8 +190,11 @@ export default async function ReportIVAPage() {
                   </span>
                   {t.hasOverride && <span className="badge badge-accent" style={{ fontSize: "0.5rem" }}>confermato</span>}
                 </div>
-                <span className={`badge ${t.versata ? "badge-success" : t.urgent ? "badge-error" : "badge-warning"}`} title={t.versata ? "Inferito dalla data — confermare con F24" : undefined}>
-                  {t.versata ? "Versata" : "Da versare"}
+                <span
+                  className={`badge ${t.versata ? "badge-success" : t.scadutaNonConfermata || t.urgent ? "badge-error" : "badge-warning"}`}
+                  title={t.versata ? `Versata il ${t.dataVersamento}` : t.scadutaNonConfermata ? "Scadenza passata, nessun versamento registrato in IVA_VERSATE" : undefined}
+                >
+                  {t.versata ? `Versata ${t.dataVersamento?.split("-").reverse().join("/")}` : t.scadutaNonConfermata ? "⚠ Da confermare" : "Da versare"}
                 </span>
               </div>
             </div>
@@ -230,6 +260,14 @@ export default async function ReportIVAPage() {
                           {formatEuro(t.ivaNetta)}
                         </span>
                         <span className="badge badge-accent" style={{ fontSize: "0.52rem", marginLeft: "0.5rem", verticalAlign: "middle" }}>confermato</span>
+                      </td>
+                    </tr>
+                  )}
+                  {t.hasOverride && t.deltaOverride !== 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ paddingTop: "0.3rem", fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", lineHeight: 1.5 }}>
+                        Differenza {t.deltaOverride > 0 ? "+" : "−"}{formatEuro(Math.abs(t.deltaOverride))} rispetto al calcolo: in genere sono spese
+                        indetraibili che il tool non distingue. Se il salto e&rsquo; inatteso, vale la pena chiedere il dettaglio.
                       </td>
                     </tr>
                   )}
