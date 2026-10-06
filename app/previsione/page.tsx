@@ -18,6 +18,8 @@ type Uscita = {
   label: string;
   importo: number;
   tipo: "iva" | "mutuo" | "fornitore" | "anticipo_soci" | "ritenuta" | "abbonamento";
+  /** Dovuta solo se arrivano ricavi ancora da fatturare: fuori dal pavimento. */
+  condizionato?: boolean;
 };
 
 type EntrataAttesa = {
@@ -98,7 +100,7 @@ async function getData() {
     const ivaNetta = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
     const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
     const noteAtteso = !IVA_VERSAMENTI[trimestre] && ivaDebAtteso > 0 ? ` · +${formatEuro(Math.round(ivaDebAtteso))} da incassi previsti` : "";
-    const voce: Uscita = { data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`, importo: ivaNetta, tipo: "iva" };
+    const voce: Uscita = { data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`, importo: ivaNetta, tipo: "iva", condizionato: ivaDebCerto === 0 && ivaDebAtteso > 0 };
     // Il versamento di un trimestre di quest'anno puo' scadere dopo il 31/12:
     // resta fuori dal totale dell'anno ma va mostrato, altrimenti pianifichi
     // dicembre senza sapere cosa arriva subito dopo.
@@ -214,7 +216,9 @@ async function getData() {
   const totaleUscite          = uscite.reduce((s, u) => s + u.importo, 0);
   // Gli anticipi soci non li reclama nessuno a data fissa: sono una leva, non
   // un obbligo. Il pavimento si misura su cio' che devi pagare comunque.
-  const usciteVincolate       = uscite.filter(u => u.tipo !== "anticipo_soci").reduce((s, u) => s + u.importo, 0);
+  // Stessa definizione di cassa e simulazione: non discrezionale e non
+  // condizionato a incassi futuri.
+  const usciteVincolate       = uscite.filter(u => u.tipo !== "anticipo_soci" && !u.condizionato).reduce((s, u) => s + u.importo, 0);
 
   // Riepilogo per semestre
   const incassatoH1 = incassatoPerMese.slice(0, 6).reduce((s, v) => s + v, 0);

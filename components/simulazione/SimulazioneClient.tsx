@@ -54,6 +54,8 @@ export default function SimulazioneClient({
   // ── Calcoli ────────────────────────────────────────────────────────────────
   const totaleAnticipi = anticipi.reduce((s, a) => s + (Number(a.importo) || 0), 0);
   const totaleUsciteFisse = usciteFisse.reduce((s, u) => s + u.importo, 0);
+  // Il pavimento esclude cio' che dipende da ricavi ancora da fatturare.
+  const totaleVincolate = usciteFisse.filter(u => !u.condizionato).reduce((s, u) => s + u.importo, 0);
 
   const uscitePerMese = Array(12).fill(0) as number[];
   for (const u of usciteFisse) uscitePerMese[u.mese] += u.importo;
@@ -87,7 +89,7 @@ export default function SimulazioneClient({
   const saldoPianoSimulato = righe[righe.length - 1]?.saldo ?? saldoAttuale;
   // Pavimento: cosa resta coprendo i soli obblighi, senza distribuire nulla ai
   // soci. E' il tetto di quanto puoi permetterti di versare come anticipo.
-  const saldoVincoli = proiettaSaldo(saldoAttuale, 0, totaleUsciteFisse).conservativo;
+  const saldoVincoli = proiettaSaldo(saldoAttuale, 0, totaleVincolate).conservativo;
   // Stessa definizione di previsione, cassa e snapshot: piano simulato + incassi attesi.
   // Il venduto Won non ancora fatturato è uno scenario a parte, non entra qui.
   // Quanto si puo' distribuire restando dentro il fido, coperti i soli obblighi.
@@ -198,7 +200,7 @@ export default function SimulazioneClient({
         <SaldoCard label="Fido bancario" value={formatEuro(fidoBancario)} color="var(--muted)" note="linea di credito disponibile" />
         <SaldoCard label="Liquidità totale" value={formatEuro(saldoAttuale + fidoBancario)} color="var(--accent)" note="saldo + fido" />
         <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rat${anticipi.length === 1 ? "a" : "e"}`} />
-        <SaldoCard label="Uscite vincolate" value={formatEuro(Math.round(totaleUsciteFisse * 100) / 100)} color="var(--muted)" note="IVA, mutuo, fornitori, ricorrenti" />
+        <SaldoCard label="Uscite vincolate" value={formatEuro(Math.round(totaleVincolate * 100) / 100)} color="var(--muted)" note="IVA, mutuo, fornitori, ricorrenti" />
         <SaldoCard
           label="Coprendo i soli vincoli"
           value={formatEuro(Math.round(saldoVincoli * 100) / 100)}

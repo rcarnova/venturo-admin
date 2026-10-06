@@ -10,7 +10,7 @@ export const revalidate = 0;
 
 const ANNO = new Date().getFullYear();
 
-export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string };
+export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string; condizionato?: boolean };
 
 async function getData() {
   const [fatturePages, ricevutePages, pipelinePages, anticipiSoci] = await Promise.all([
@@ -50,29 +50,32 @@ async function getData() {
   const fattureInForecast = fatture.filter(f =>
     f.status === "Inviata" || (f.status === "Da inviare" && f.dataIncassoAtteso != null)
   );
-  const ivaPerTrimestre = new Map<string, number>();
+  // certo = da fatture gia' emesse, atteso = dalle bozze in programma. Serve
+  // distinguerli: un debito fatto solo di atteso non esiste se non fatturi.
+  const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
   for (const f of fatture) {
     if (f.trimestreIVA && f.status !== "Da inviare") {
-      ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
+      const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
+      ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
     }
   }
-  // IVA attesa dalle sole bozze: il trimestre segue la data fattura prevista.
   for (const f of fattureInForecast) {
     if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
-    ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
+    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
+    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
   }
   // "Da ricevere" esclusa (IVA non ancora pagata), reverse charge escluso (nessuna IVA versata)
   const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
   const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
-  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
+  for (const [trimestre, { certo: ivaDebCerto, atteso: ivaDebAtteso }] of Array.from(ivaPerTrimestre)) {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const sc = new Date(y, m - 1, d); sc.setHours(0, 0, 0, 0);
     if (sc < today || sc > fineAnno) continue;
     const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
+    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
     const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${creditoTrimestre.toFixed(2)} credito)` : "";
-    usciteFisse.push({ mese: sc.getMonth(), importo: ivaNetta, label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`, tipo: "iva" });
+    usciteFisse.push({ mese: sc.getMonth(), importo: ivaNetta, label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}`, tipo: "iva", condizionato: ivaDebCerto === 0 && ivaDebAtteso > 0 });
   }
 
   // Mutuo

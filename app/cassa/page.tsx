@@ -19,6 +19,9 @@ type Flusso = {
   /** Uscita che decidiamo noi: nessuna controparte la reclama, nessuna scadenza
    *  di legge. Rinviabile in base alla cassa, quindi fuori dal pavimento. */
   discrezionale?: boolean;
+  /** Dovuta solo se arrivano ricavi ancora da fatturare: senza quelli non esiste.
+   *  Fuori dal pavimento, che misura cio' che devi pagare comunque. */
+  condizionato?: boolean;
 };
 
 async function getData() {
@@ -140,6 +143,7 @@ async function getData() {
       importo: -ivaNetta,
       tipo: "iva",
       certo: ivaDebCerto > 0, // incerto se solo da fatture attese
+      condizionato: ivaDebCerto === 0 && ivaDebAtteso > 0,
     });
   }
 
@@ -246,7 +250,9 @@ async function getData() {
   // sempre alla somma delle righe elencate sotto.
   // Tre nature diverse: vincolate (qualcuno le reclama a una data fissa),
   // discrezionali (decidiamo noi quando), previste (attese ma non confermate).
-  const usciteVincolate = flussi90.filter((f) => f.certo && !f.discrezionale && f.importo < 0).reduce((s, f) => s - f.importo, 0);
+  // Vincolata = non la decidiamo noi e non dipende da ricavi futuri. Lo stato
+  // "Da ricevere" riguarda il documento, non l'obbligo: l'abbonamento lo paghi.
+  const usciteVincolate = flussi90.filter((f) => !f.discrezionale && !f.condizionato && f.importo < 0).reduce((s, f) => s - f.importo, 0);
   const usciteDiscrezionali = flussi90.filter((f) => f.discrezionale && f.importo < 0).reduce((s, f) => s - f.importo, 0);
   const usciteTutte = flussi90.filter((f) => f.importo < 0).reduce((s, f) => s - f.importo, 0);
   const uscitePreviste = flussi90.filter((f) => !f.certo && f.importo < 0).reduce((s, f) => s - f.importo, 0);
