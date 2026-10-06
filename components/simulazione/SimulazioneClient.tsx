@@ -77,11 +77,14 @@ export default function SimulazioneClient({
     });
   }
 
-  const saldoConservativo = righe[righe.length - 1]?.saldo ?? saldoAttuale;
-  // Stessa definizione di previsione, cassa e snapshot: conservativo + incassi attesi.
+  const saldoPianoSimulato = righe[righe.length - 1]?.saldo ?? saldoAttuale;
+  // Pavimento: cosa resta coprendo i soli obblighi, senza distribuire nulla ai
+  // soci. E' il tetto di quanto puoi permetterti di versare come anticipo.
+  const saldoVincoli = proiettaSaldo(saldoAttuale, 0, totaleUsciteFisse).conservativo;
+  // Stessa definizione di previsione, cassa e snapshot: piano simulato + incassi attesi.
   // Il venduto Won non ancora fatturato è uno scenario a parte, non entra qui.
-  const saldoOttimistico = proiettaSaldo(saldoConservativo, daIncassare, 0).ottimistico;
-  const saldoConVenduto  = proiettaSaldo(saldoConservativo, daIncassare + daFatturareWon, 0).ottimistico;
+  const saldoOttimistico = proiettaSaldo(saldoPianoSimulato, daIncassare, 0).ottimistico;
+  const saldoConVenduto  = proiettaSaldo(saldoPianoSimulato, daIncassare + daFatturareWon, 0).ottimistico;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -180,10 +183,16 @@ export default function SimulazioneClient({
         <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rata${anticipi.length !== 1 ? "e" : "a"}`} />
         <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori + abbonamenti" />
         <SaldoCard
-          label="Saldo conservativo dic"
-          value={formatEuro(Math.round(saldoConservativo))}
-          color={(saldoConservativo + fidoBancario) < 0 ? "#ff4444" : (saldoConservativo + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
-          note={`con fido: ${formatEuro(Math.round(saldoConservativo) + fidoBancario)}`}
+          label="Coprendo i soli vincoli"
+          value={formatEuro(Math.round(saldoVincoli))}
+          color={(saldoVincoli + fidoBancario) < 0 ? "#ff4444" : (saldoVincoli + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
+          note={`con fido: ${formatEuro(Math.round(saldoVincoli) + fidoBancario)} · anticipi esclusi`}
+        />
+        <SaldoCard
+          label="Con il piano simulato"
+          value={formatEuro(Math.round(saldoPianoSimulato))}
+          color={(saldoPianoSimulato + fidoBancario) < 0 ? "#ff4444" : (saldoPianoSimulato + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
+          note={`con fido: ${formatEuro(Math.round(saldoPianoSimulato) + fidoBancario)} · dopo gli anticipi`}
         />
         <SaldoCard
           label="Saldo ottimistico dic"
