@@ -14,6 +14,7 @@ type Props = {
   daIncassare: number;
   daFatturareWon: number;
   usciteFisse: UscitaFissa[];
+  entratePerMese: number[];
   anticipoDefault: { dataStr: string; importo: number }[];
   meseCorrente: number;
   fattore: number;
@@ -26,7 +27,7 @@ function newId() { return `a-${_nextId++}`; }
 
 export default function SimulazioneClient({
   saldoAttuale, daIncassare, daFatturareWon,
-  usciteFisse, anticipoDefault, meseCorrente, fattore, fidoBancario,
+  usciteFisse, entratePerMese, anticipoDefault, meseCorrente, fattore, fidoBancario,
 }: Props) {
   const [anticipi, setAnticipi] = useState<Anticipo[]>(
     anticipoDefault.map(a => ({ ...a, id: newId() }))
@@ -62,16 +63,22 @@ export default function SimulazioneClient({
     if (!isNaN(m)) uscitePerMese[m] += Number(a.importo);
   }
 
-  let running = saldoAttuale;
+  // Due percorsi affiancati: "senza incassi" e' lo stress test, "con incassi"
+  // e' cio' che succede se le fatture vengono pagate quando previsto.
+  let senzaIncassi = saldoAttuale;
+  let conIncassi = saldoAttuale;
   const righe = [];
   for (let m = meseCorrente; m <= 11; m++) {
-    running -= uscitePerMese[m];
+    senzaIncassi -= uscitePerMese[m];
+    conIncassi += (entratePerMese[m] ?? 0) - uscitePerMese[m];
     const fisse = usciteFisse.filter(u => u.mese === m);
     const antMese = anticipi.filter(a => a.dataStr && new Date(a.dataStr + "T00:00:00").getMonth() === m && Number(a.importo) > 0);
     righe.push({
       mese: m,
       uscite: uscitePerMese[m],
-      saldo: running,
+      entrate: entratePerMese[m] ?? 0,
+      saldo: senzaIncassi,
+      saldoConIncassi: conIncassi,
       fisse,
       antMese,
     });
@@ -83,6 +90,9 @@ export default function SimulazioneClient({
   const saldoVincoli = proiettaSaldo(saldoAttuale, 0, totaleUsciteFisse).conservativo;
   // Stessa definizione di previsione, cassa e snapshot: piano simulato + incassi attesi.
   // Il venduto Won non ancora fatturato è uno scenario a parte, non entra qui.
+  // Quanto si puo' distribuire restando dentro il fido, coperti i soli obblighi.
+  const margineAnticipi = saldoVincoli + fidoBancario;
+  const eccedenza = totaleAnticipi - margineAnticipi;
   const saldoOttimistico = proiettaSaldo(saldoPianoSimulato, daIncassare, 0).ottimistico;
   const saldoConVenduto  = proiettaSaldo(saldoPianoSimulato, daIncassare + daFatturareWon, 0).ottimistico;
 
@@ -161,6 +171,13 @@ export default function SimulazioneClient({
               Totale anticipi:&ensp;
               <span className="num" style={{ color: "#ffb400", fontWeight: 600 }}>{formatEuro(totaleAnticipi)}</span>
             </div>
+            {totaleAnticipi > 0 && (
+              <div style={{ display: "flex", justifyContent: "flex-end", fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: eccedenza > 0 ? "#ffb400" : "var(--sage)", lineHeight: 1.5, textAlign: "right" }}>
+                {eccedenza > 0
+                  ? `Margine coprendo i soli vincoli: ${formatEuro(Math.round(margineAnticipi * 100) / 100)} · il piano lo supera di ${formatEuro(Math.round(eccedenza * 100) / 100)}, serve che gli incassi arrivino prima`
+                  : `Rientra nel margine di ${formatEuro(Math.round(margineAnticipi * 100) / 100)} disponibile coprendo i soli vincoli`}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -180,32 +197,34 @@ export default function SimulazioneClient({
         <SaldoCard label="Saldo attuale" value={formatEuro(saldoAttuale)} color="var(--text)" />
         <SaldoCard label="Fido bancario" value={formatEuro(fidoBancario)} color="var(--muted)" note="linea di credito disponibile" />
         <SaldoCard label="Liquidità totale" value={formatEuro(saldoAttuale + fidoBancario)} color="var(--accent)" note="saldo + fido" />
-        <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rata${anticipi.length !== 1 ? "e" : "a"}`} />
-        <SaldoCard label="Altre uscite fisse" value={formatEuro(Math.round(totaleUsciteFisse))} color="var(--muted)" note="IVA + mutuo + fornitori + abbonamenti" />
+        <SaldoCard label="Anticipi simulati" value={formatEuro(totaleAnticipi)} color="#ffb400" note={`${anticipi.length} rat${anticipi.length === 1 ? "a" : "e"}`} />
+        <SaldoCard label="Uscite vincolate" value={formatEuro(Math.round(totaleUsciteFisse * 100) / 100)} color="var(--muted)" note="IVA, mutuo, fornitori, ricorrenti" />
         <SaldoCard
           label="Coprendo i soli vincoli"
-          value={formatEuro(Math.round(saldoVincoli))}
+          value={formatEuro(Math.round(saldoVincoli * 100) / 100)}
           color={(saldoVincoli + fidoBancario) < 0 ? "#ff4444" : (saldoVincoli + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
           note={`con fido: ${formatEuro(Math.round(saldoVincoli) + fidoBancario)} · anticipi esclusi`}
         />
         <SaldoCard
           label="Con il piano simulato"
-          value={formatEuro(Math.round(saldoPianoSimulato))}
+          value={formatEuro(Math.round(saldoPianoSimulato * 100) / 100)}
           color={(saldoPianoSimulato + fidoBancario) < 0 ? "#ff4444" : (saldoPianoSimulato + fidoBancario) < 2000 ? "#ffb400" : "var(--text)"}
           note={`con fido: ${formatEuro(Math.round(saldoPianoSimulato) + fidoBancario)} · dopo gli anticipi`}
         />
         <SaldoCard
           label="Saldo ottimistico dic"
-          value={formatEuro(Math.round(saldoOttimistico))}
+          value={formatEuro(Math.round(saldoOttimistico * 100) / 100)}
           color={(saldoOttimistico + fidoBancario) < 0 ? "#ff4444" : "var(--sage)"}
           note="se incassi tutto · stessa base di previsione e cassa"
         />
-        <SaldoCard
-          label="Con venduto da fatturare"
-          value={`~${formatEuro(Math.round(saldoConVenduto))}`}
-          color={(saldoConVenduto + fidoBancario) < 0 ? "#ff4444" : "var(--accent)"}
-          note={`+ Won non ancora fatturato ×${Math.round(fattore * 100)}%`}
-        />
+        {daFatturareWon > 0 && (
+          <SaldoCard
+            label="Con venduto da fatturare"
+            value={`~${formatEuro(Math.round(saldoConVenduto * 100) / 100)}`}
+            color={(saldoConVenduto + fidoBancario) < 0 ? "#ff4444" : "var(--accent)"}
+            note={`+ Won non ancora fatturato ×${Math.round(fattore * 100)}%`}
+          />
+        )}
       </div>
 
       {/* ── Timeline ── */}
@@ -219,15 +238,18 @@ export default function SimulazioneClient({
               <tr>
                 <th>Mese</th>
                 <th className="col-hide-mobile">Uscite dettaglio</th>
-                <th>Totale uscite</th>
-                <th>Saldo fine mese</th>
+                <th>Entrate</th>
+                <th>Uscite</th>
+                <th>Senza incassi</th>
+                <th>Con incassi</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>Oggi</td>
                 <td className="col-hide-mobile" />
-                <td />
+                <td /><td />
+                <td><span className="num" style={{ fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
                 <td><span className="num" style={{ fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
               </tr>
               {righe.map(r => (
@@ -250,30 +272,43 @@ export default function SimulazioneClient({
                     </div>
                   </td>
                   <td>
-                    {r.uscite > 0
-                      ? <span className="num" style={{ color: "#ff4444" }}>−{formatEuro(Math.round(r.uscite))}</span>
+                    {r.entrate > 0
+                      ? <span className="num" style={{ color: "#00c864" }}>~+{formatEuro(Math.round(r.entrate * 100) / 100)}</span>
                       : <span style={{ color: "var(--muted-2)", fontSize: "0.7rem" }}>—</span>
                     }
                   </td>
                   <td>
-                    <span className="num" style={{ color: r.saldo < 0 ? "#ff4444" : r.saldo < 2000 ? "#ffb400" : "var(--text)", fontWeight: 600 }}>
-                      {formatEuro(Math.round(r.saldo))}
+                    {r.uscite > 0
+                      ? <span className="num" style={{ color: "#ff4444" }}>−{formatEuro(Math.round(r.uscite * 100) / 100)}</span>
+                      : <span style={{ color: "var(--muted-2)", fontSize: "0.7rem" }}>—</span>
+                    }
+                  </td>
+                  <td>
+                    <span className="num" style={{ color: r.saldo < 0 ? "#ff4444" : r.saldo < 2000 ? "#ffb400" : "var(--muted)", fontWeight: 500 }}>
+                      {formatEuro(Math.round(r.saldo * 100) / 100)}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="num" style={{ color: r.saldoConIncassi < 0 ? "#ff4444" : r.saldoConIncassi < 2000 ? "#ffb400" : "var(--text)", fontWeight: 600 }}>
+                      {formatEuro(Math.round(r.saldoConIncassi * 100) / 100)}
                     </span>
                   </td>
                 </tr>
               ))}
+              {daFatturareWon > 0 && (
               <tr style={{ borderTop: "1px solid var(--border)" }}>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--sage)" }}>Dic (ottimistico)</td>
+                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--sage)" }}>Dic + venduto</td>
                 <td className="col-hide-mobile" style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)" }}>
-                  + fatture inviata {formatEuro(daIncassare)} + pipeline {formatEuro(daFatturareWon)}
+                  + Won non ancora fatturato {formatEuro(daFatturareWon)}
                 </td>
-                <td />
+                <td /><td /><td />
                 <td>
-                  <span className="num" style={{ color: saldoOttimistico >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>
-                    {formatEuro(Math.round(saldoOttimistico))}
+                  <span className="num" style={{ color: saldoConVenduto >= 0 ? "var(--sage)" : "#ff4444", fontWeight: 700 }}>
+                    {formatEuro(Math.round(saldoConVenduto * 100) / 100)}
                   </span>
                 </td>
               </tr>
+              )}
             </tbody>
           </table>
         </div>

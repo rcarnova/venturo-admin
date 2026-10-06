@@ -129,12 +129,25 @@ async function getData() {
     usciteFisse.push({ mese: scad.getMonth(), importo: f.importoRitenuta, label: `Ritenuta ${f.nome}`, tipo: "ritenuta" });
   }
 
+  // Entrate attese ripartite sul mese di incasso previsto: senza questa
+  // ripartizione la proiezione mensile mostra solo uscite e descrive una crisi
+  // che non esiste, perche' gli incassi compaiono tutti insieme alla fine.
+  const entratePerMese = Array(12).fill(0) as number[];
+  for (const f of fattureInForecast) {
+    let d = f.dataIncassoAtteso
+      ? new Date(f.dataIncassoAtteso + "T00:00:00")
+      : (() => { const b = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today); b.setDate(b.getDate() + 30); return b; })();
+    if (d < today) d = new Date(today);
+    if (d.getFullYear() !== ANNO) continue;
+    entratePerMese[d.getMonth()] += f.incassoNetto;
+  }
+
   // Anticipi soci — solo config.ts (modifica ANTICIPO_SOCI in lib/config.ts)
   const anticipoDefault = anticipiSoci
     .filter(a => { const d = new Date(a.data); d.setHours(0, 0, 0, 0); return d >= today && d <= fineAnno; })
     .map(a => ({ dataStr: toDateStr(new Date(a.data)), importo: a.importo }));
 
-  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
+  return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, entratePerMese, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
 }
 
 export default async function SimulazionePage() {
