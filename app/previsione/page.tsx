@@ -68,6 +68,7 @@ async function getData() {
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
+  const usciteOltreAnno: (Uscita & { scadenzaStr: string })[] = [];
 
   // IVA — debito da fatture Pagata (certo) + IVA attesa da fattureInForecast (simulazione)
   const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
@@ -99,13 +100,18 @@ async function getData() {
     const scadenzaStr = scadenzaVersamentoIVA(trimestre);
     const [d, m, y] = scadenzaStr.split("/").map(Number);
     const scadenzaDate = new Date(y, m - 1, d); scadenzaDate.setHours(0, 0, 0, 0);
-    if (scadenzaDate < today || scadenzaDate > fineAnno) continue;
+    if (scadenzaDate < today) continue;
     const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
     const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
     const ivaNetta = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
     const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
     const noteAtteso = !IVA_VERSAMENTI[trimestre] && ivaDebAtteso > 0 ? ` · +${formatEuro(Math.round(ivaDebAtteso))} da incassi previsti` : "";
-    uscite.push({ data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`, importo: ivaNetta, tipo: "iva" });
+    const voce: Uscita = { data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`, importo: ivaNetta, tipo: "iva" };
+    // Il versamento di un trimestre di quest'anno puo' scadere dopo il 31/12:
+    // resta fuori dal totale dell'anno ma va mostrato, altrimenti pianifichi
+    // dicembre senza sapere cosa arriva subito dopo.
+    if (scadenzaDate > fineAnno) usciteOltreAnno.push({ ...voce, scadenzaStr });
+    else uscite.push(voce);
   }
 
   // Mutuo
@@ -212,7 +218,11 @@ async function getData() {
   const totaleAnticipo2026    = uscite.filter(u => u.tipo === "anticipo_soci").reduce((s, u) => s + u.importo, 0);
   const totaleRitenuta2026    = uscite.filter(u => u.tipo === "ritenuta").reduce((s, u) => s + u.importo, 0);
   const totaleAbbonamenti2026 = uscite.filter(u => u.tipo === "abbonamento").reduce((s, u) => s + u.importo, 0);
+  const totaleOltreAnno       = Math.round(usciteOltreAnno.reduce((s, u) => s + u.importo, 0) * 100) / 100;
   const totaleUscite          = uscite.reduce((s, u) => s + u.importo, 0);
+  // Gli anticipi soci non li reclama nessuno a data fissa: sono una leva, non
+  // un obbligo. Il pavimento si misura su cio' che devi pagare comunque.
+  const usciteVincolate       = uscite.filter(u => u.tipo !== "anticipo_soci").reduce((s, u) => s + u.importo, 0);
 
   // Riepilogo per semestre
   const incassatoH1 = incassatoPerMese.slice(0, 6).reduce((s, v) => s + v, 0);
@@ -229,8 +239,8 @@ async function getData() {
   const abbH2    = uscite.filter(u => u.tipo === "abbonamento"  && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
   const ritH2    = uscite.filter(u => u.tipo === "ritenuta"     && u.mese >= 6).reduce((s, u) => s + u.importo, 0);
 
-  const { conservativo: saldoConservativo, ottimistico: saldoOttimistico } =
-    proiettaSaldo(SALDO_INIZIALE, totaleEntrateAttese, totaleUscite);
+  const { conservativo: saldoConservativo } = proiettaSaldo(SALDO_INIZIALE, 0, usciteVincolate);
+  const { ottimistico: saldoOttimistico } = proiettaSaldo(SALDO_INIZIALE, totaleEntrateAttese, totaleUscite);
 
   // Running balance mensile: uscite certe + entrate attese da fatture Inviata (+30gg)
   const righe: { mese: number; entrate: number; entrateDettaglio: { nome: string; importo: number }[]; uscite: number; saldo: number; passato: boolean; usciteDettaglio: Uscita[] }[] = [];
@@ -258,7 +268,7 @@ async function getData() {
     totaleEntrateAttese,
     uscite, entrateAttesePianificate,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
-    saldoConservativo, saldoOttimistico,
+    saldoConservativo, saldoOttimistico, usciteOltreAnno, totaleOltreAnno, usciteVincolate,
     righe,
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
@@ -274,7 +284,7 @@ export default async function PrevisioneAnnualePage() {
     totaleEntrateAttese,
     uscite, entrateAttesePianificate,
     totaleIVA2026, totaleMutuo2026, totaleFornitore2026, totaleAnticipo2026, totaleRitenuta2026, totaleAbbonamenti2026, totaleUscite,
-    saldoConservativo, saldoOttimistico,
+    saldoConservativo, saldoOttimistico, usciteOltreAnno, totaleOltreAnno, usciteVincolate,
     righe,
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
@@ -317,14 +327,14 @@ export default async function PrevisioneAnnualePage() {
             </div>
             <RigaValore
               label="Da incassare"
-              value={formatEuro(Math.round(daIncassare))}
+              value={formatEuro(Math.round(daIncassare * 100) / 100)}
               color="var(--accent)"
               note={daIncassareFuoriAnno > 0
                 ? `netto ritenuta · ${formatEuro(Math.round(daIncassareFuoriAnno))} fuori ${ANNO} (esclusi dalla timeline)`
                 : "netto ritenuta IRPEF · Inviata + Da inviare con data attesa"}
             />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
-              <RigaValore label="Totale entrate attese" value={formatEuro(Math.round(totaleEntrateAttese))} color="var(--text)" bold />
+              <RigaValore label="Totale entrate attese" value={formatEuro(Math.round(totaleEntrateAttese * 100) / 100)} color="var(--text)" bold />
             </div>
           </div>
         </div>
@@ -348,6 +358,16 @@ export default async function PrevisioneAnnualePage() {
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <RigaValore label="Totale uscite" value={formatEuro(Math.round(totaleUscite * 100) / 100)} color="var(--text)" bold />
             </div>
+            {totaleOltreAnno > 0 && (
+              <div style={{ marginTop: "0.9rem", paddingTop: "0.7rem", borderTop: "1px dashed var(--border)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                  Oltre il 31/12 — fuori dai totali, ma in arrivo
+                </div>
+                {usciteOltreAnno.map((u) => (
+                  <RigaValore key={u.label} label={u.label.split(" — ")[0]} value={formatEuro(u.importo)} color="#e05555" note={`scade il ${u.scadenzaStr} · matura su incassi ${ANNO}`} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -378,13 +398,13 @@ export default async function PrevisioneAnnualePage() {
         </div>
         <div className="stat-card" style={{ borderColor: "var(--border-hover)" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-            Saldo conservativo
+            Coprendo i soli vincoli
           </div>
           <div className="num" style={{ fontSize: "1.3rem", fontWeight: 700, color: (saldoConservativo + FIDO_BANCARIO) < 0 ? "#ff4444" : (saldoConservativo + FIDO_BANCARIO) < 3000 ? "#ffb400" : "var(--text)" }}>
             {formatEuro(Math.round(saldoConservativo))}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            con fido: {formatEuro(Math.round(saldoConservativo) + FIDO_BANCARIO)}
+            con fido: {formatEuro(Math.round(saldoConservativo) + FIDO_BANCARIO)} · anticipi soci esclusi
           </div>
         </div>
         <div className="stat-card" style={{ borderColor: "var(--accent-border)" }}>
@@ -413,15 +433,23 @@ export default async function PrevisioneAnnualePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
             <RigaValore label="Incassato" value={formatEuro(Math.round(incassatoH1))} color="var(--sage)" note="netto ritenuta · fatture pagate H1" />
             {entrateAttesaH1 > 0 && (
-              <RigaValore label="Entrate attese (in corso)" value={formatEuro(Math.round(entrateAttesaH1))} color="var(--accent)" note="+30gg da dataInvio · mese corrente" />
+              <RigaValore label="Entrate attese (in corso)" value={formatEuro(Math.round(entrateAttesaH1))} color="var(--accent)" note="attese entro giugno" />
             )}
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
-              <RigaValore label="Uscite pianificate H1" value={formatEuro(Math.round(usciteH1))} color="#ff4444" />
-            </div>
-            {ivaH1 > 0 && <RigaValore label="  di cui IVA" value={formatEuro(Math.round(ivaH1))} color="var(--muted)" note="versamenti trimestrali Q1–Q2" />}
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
-              <RigaValore label="Netto H1" value={formatEuro(Math.round(incassatoH1 + entrateAttesaH1 - usciteH1))} color={(incassatoH1 + entrateAttesaH1 - usciteH1) >= 0 ? "var(--sage)" : "#ff4444"} bold />
-            </div>
+            {usciteH1 > 0 && (
+              <>
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
+                  <RigaValore label="Uscite ancora da pagare" value={formatEuro(Math.round(usciteH1 * 100) / 100)} color="#ff4444" />
+                </div>
+                {ivaH1 > 0 && <RigaValore label="  di cui IVA" value={formatEuro(Math.round(ivaH1 * 100) / 100)} color="var(--muted)" note="versamenti trimestrali Q1–Q2" />}
+              </>
+            )}
+            {usciteH1 === 0 && (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem", fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", lineHeight: 1.5 }}>
+                Semestre chiuso: le uscite effettive non sono tracciate qui, la
+                pagina elenca solo i pagamenti ancora da fare. Il saldo di
+                periodo è già dentro al saldo in banca.
+              </div>
+            )}
           </div>
         </div>
 
@@ -434,7 +462,7 @@ export default async function PrevisioneAnnualePage() {
             {incassatoH2 > 0 && (
               <RigaValore label="Già incassato H2" value={formatEuro(Math.round(incassatoH2))} color="var(--sage)" />
             )}
-            <RigaValore label="Entrate attese" value={formatEuro(Math.round(entrateAttesaH2))} color="var(--accent)" note="● impegni — +30gg da dataInvio · fatture Inviata" />
+            <RigaValore label="Entrate attese" value={formatEuro(Math.round(entrateAttesaH2))} color="var(--accent)" note="● impegni — Inviata + bozze con data di incasso" />
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
               <RigaValore label="Uscite pianificate H2" value={formatEuro(Math.round(usciteH2))} color="#ff4444" />
             </div>
