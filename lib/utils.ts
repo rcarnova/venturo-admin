@@ -42,16 +42,31 @@ export function formatDate(dateStr: string | null): string {
   });
 }
 
+/** Un versamento che cade di sabato o domenica e' tempestivo se effettuato il
+ *  primo giorno lavorativo successivo (art. 18 c.1 DLgs 241/97). Senza questa
+ *  regola il tool mostra scadenze che non esistono: il 16/05/2026 era sabato. */
+export function prossimoGiornoLavorativo(d: Date): Date {
+  const r = new Date(d);
+  const giorno = r.getDay();
+  if (giorno === 6) r.setDate(r.getDate() + 2); // sabato → lunedi
+  else if (giorno === 0) r.setDate(r.getDate() + 1); // domenica → lunedi
+  return r;
+}
+
 export function scadenzaVersamentoIVA(trimestre: string): string {
   const [q, year] = trimestre.split(" ");
   const y = Number(year);
-  const dates: Record<string, string> = {
-    Q1: `16/05/${y}`,
-    Q2: `20/08/${y}`,
-    Q3: `16/11/${y}`,
-    Q4: `16/03/${y + 1}`,
+  // mese 0-based, anno: Q4 si versa a marzo dell'anno dopo
+  const base: Record<string, [number, number, number]> = {
+    Q1: [y, 4, 16],
+    Q2: [y, 7, 20],  // 16/08 prorogato al 20 per Ferragosto (art. 37 c.11-bis DL 223/2006)
+    Q3: [y, 10, 16],
+    Q4: [y + 1, 2, 16],
   };
-  return dates[q] ?? "—";
+  const spec = base[q];
+  if (!spec) return "—";
+  const d = prossimoGiornoLavorativo(new Date(spec[0], spec[1], spec[2]));
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 export function calcolaTrimestre(dateStr: string): import("./types").TrimestreIVA | null {
@@ -96,7 +111,7 @@ export function scadenzaRitenuta(dataRiferimento: Date): Date {
   if (d.getMonth() === 7 && d.getDate() === 15) {
     d.setDate(20);
   }
-  return d;
+  return prossimoGiornoLavorativo(d);
 }
 
 /**

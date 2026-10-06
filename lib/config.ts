@@ -25,8 +25,8 @@ export const IVA_VERSAMENTI: Record<string, number> = {
 // scadenza trascorsa non prova che il versamento sia avvenuto.
 // Formato: "Q2 2026" → "2026-08-25"
 export const IVA_VERSATE: Record<string, string> = {
-  "Q1 2026": "2026-05-18",
-  "Q2 2026": "2026-08-25", // rimborsato a Massimo
+  "Q1 2026": "2026-05-18", // scadenza 16/05 slittata al lunedi
+  "Q2 2026": "2026-08-16", // F24 pagato da Massimo dal conto personale, rimborsato il 25/08
 };
 
 // ─── Mutuo ───────────────────────────────────────────────────────────────────

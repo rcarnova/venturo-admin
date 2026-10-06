@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
 import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
+import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE } from "@/lib/config";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 export const revalidate = 0;
@@ -88,7 +88,8 @@ async function getDashboardData() {
       const scadenzaStr = scadenzaVersamentoIVA(trimestre);
       const [d, m, y] = scadenzaStr.split("/").map(Number);
       const scadenzaDate = new Date(y, m - 1, d);
-      const versata = scadenzaDate < today;
+      // Versata solo se risulta un versamento, come nel report IVA.
+      const versata = trimestre in IVA_VERSATE;
       const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
       const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
       const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebito - creditoTrimestre) * 100) / 100);
