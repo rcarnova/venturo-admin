@@ -15,6 +15,7 @@ export const FIDO_BANCARIO = 5_000;
 // Sovrascrive il calcolo automatico (utile quando alcune spese non sono detraibili).
 // Formato: "Q1 2026" | "Q2 2026" | "Q3 2026" | "Q4 2026" → importo netto da versare
 export const IVA_VERSAMENTI: Record<string, number> = {
+  "Q1 2026": 247.97,   // confermato dal commercialista
   "Q2 2026": 4_284.05, // confermato dal commercialista
 };
 
@@ -24,6 +25,7 @@ export const IVA_VERSAMENTI: Record<string, number> = {
 // scadenza trascorsa non prova che il versamento sia avvenuto.
 // Formato: "Q2 2026" → "2026-08-25"
 export const IVA_VERSATE: Record<string, string> = {
+  "Q1 2026": "2026-05-18",
   "Q2 2026": "2026-08-25", // rimborsato a Massimo
 };
 
