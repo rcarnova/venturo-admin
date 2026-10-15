@@ -40,8 +40,8 @@ export const MUTUO = {
 // ─── Anticipo soci ───────────────────────────────────────────────────────────
 export const ANTICIPO_SOCI = [
   // luglio pagato il 15/07 (€10.000) — già nel SALDO_BASE
-  { data: new Date(2026, 9, 31), importo: 10_000 },  // fine ottobre
-  { data: new Date(2026, 11, 31), importo: 10_000 }, // fine dicembre
+  { data: new Date(2026, 9, 30), importo: 16_000 },  // 30 ottobre
+  { data: new Date(2026, 11, 23), importo: 10_000 }, // 23 dicembre
 ];
 
 // ─── Costi ricorrenti mensili ─────────────────────────────────────────────────
