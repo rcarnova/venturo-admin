@@ -3,8 +3,8 @@
 // Il tool aggiunge automaticamente tutti i pagamenti (fatture Pagata)
 // successivi a questa data.
 export const SALDO_BASE = {
-  importo: 1_823.92,
-  data: "2026-10-15", // riconciliato su estratto Banca Sella del 15/10/2026
+  importo: 1_682.73,
+  data: "2026-11-02", // riconciliato su estratto Banca Sella del 02/11/2026
 };
 
 // ─── Fido bancario ───────────────────────────────────────────────────────────
@@ -32,9 +32,9 @@ export const IVA_VERSATE: Record<string, string> = {
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
 export const MUTUO = {
   importoRata: 136.79,
-  prossimaRata: new Date(2026, 9, 21), // 21 ottobre 2026 — rata settembre pagata il 21/09/2026
-  nRateRimanenti: 23,
-  totaleRimanente: 3_109.68, // 3_246.47 - 136.79
+  prossimaRata: new Date(2026, 10, 21), // 21 novembre 2026 — rata ottobre pagata il 21/10/2026
+  nRateRimanenti: 22,
+  totaleRimanente: 2_972.89, // 3_109.68 - 136.79
 };
 
 // ─── Costi ricorrenti mensili ─────────────────────────────────────────────────
