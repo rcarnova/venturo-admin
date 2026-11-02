@@ -99,6 +99,7 @@ export function isUrgent(dateStr: string | null, daysThreshold = 15): boolean {
  * Calcola il saldo bancario dinamico partendo da SALDO_BASE:
  *  + fatture emesse incassate dopo la data di riconciliazione
  *  - fatture ricevute pagate dopo la data di riconciliazione (richiede "Data pagamento" su Notion)
+ *  - anticipi soci pagati dopo la data di riconciliazione
  */
 /** Restituisce il 15 del mese successivo alla data di pagamento fornitore.
  *  Gestisce la proroga di Ferragosto: se cade il 15/08 → slitta al 20/08. */
@@ -163,7 +164,8 @@ export function calcolaSaldoDinamico(
   fatture: import("./types").Fattura[],
   ricevute: import("./types").FatturaRicevuta[],
   baseImporto: number,
-  baseData: string
+  baseData: string,
+  anticipi: import("./types").AnticipoSocio[] = []
 ): number {
   const oggi = toDateStr(new Date()); // solo movimenti già avvenuti
 
@@ -175,5 +177,9 @@ export function calcolaSaldoDinamico(
     .filter(f => f.status === "Pagata" && f.dataPagamento && f.dataPagamento > baseData && f.dataPagamento <= oggi)
     .reduce((s, f) => s + f.importo, 0);
 
-  return Math.round((baseImporto + incassi - pagamenti) * 100) / 100;
+  const anticipiPagati = anticipi
+    .filter(a => a.stato === "Pagato" && a.data > baseData && a.data <= oggi)
+    .reduce((s, a) => s + a.importo, 0);
+
+  return Math.round((baseImporto + incassi - pagamenti - anticipiPagati) * 100) / 100;
 }

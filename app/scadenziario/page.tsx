@@ -1,6 +1,6 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese, mapCliente } from "@/lib/notion";
-import { formatEuro, formatDate, scadenzaVersamentoIVA, periodoTrimestre, toDateStr, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { COSTI_RICORRENTI, IVA_VERSAMENTI } from "@/lib/config";
+import { formatEuro, formatDate, toDateStr } from "@/lib/utils";
+import { calcolaFlussi } from "@/lib/flussi";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import Link from "next/link";
@@ -37,55 +37,26 @@ async function getData() {
 
   const eventi: Evento[] = [];
 
-  // Fatture ricevute — stessi stati di cassa e previsione
-  const oggiStr = toDateStr(today);
-  for (const f of ricevute) {
-    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
-    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
-    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
-    if (!statoOk || !dataRif) continue;
-    const d = new Date(dataRif);
-    if (d > in90) continue;
-    const diffDays = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-    eventi.push({
-      id: `fr-${f.id}`,
-      data: dataRif,
-      dataDisplay: formatDate(dataRif),
-      tipo: "pagamento_fornitore",
-      label: pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome,
-      importo: f.importo,
-      urgente: diffDays <= 7,
-      href: f.status ? `/fatture-ricevute?status=${encodeURIComponent(f.status)}` : "/fatture-ricevute",
-    });
-  }
-
-  // Scadenze IVA calcolate
-  const ivaPerTrimestre = new Map<string, number>();
-  for (const f of fatture) {
-    if (f.trimestreIVA && f.status !== "Da inviare") {
-      ivaPerTrimestre.set(f.trimestreIVA, (ivaPerTrimestre.get(f.trimestreIVA) ?? 0) + f.iva22);
+  // Fornitori e IVA dal motore unico, stessi importi di cassa e previsione.
+  // L'IVA compare solo con almeno una fattura emessa nel trimestre.
+  const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci: [], today });
+  for (const f of flussi) {
+    const orig = f.dataOriginale;
+    if (orig > in90) continue;
+    const diffDays = (orig.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    if (f.tipo === "uscita_fornitore") {
+      const dataRif = toDateStr(orig);
+      eventi.push({
+        id: f.id, data: dataRif, dataDisplay: formatDate(dataRif), tipo: "pagamento_fornitore",
+        label: f.label.replace(" ⚠ scaduta", ""), importo: -f.importo, urgente: diffDays <= 7,
+        href: f.statusRicevuta ? `/fatture-ricevute?status=${encodeURIComponent(f.statusRicevuta)}` : "/fatture-ricevute",
+      });
+    } else if (f.iva && f.iva.certo > 0) {
+      eventi.push({
+        id: f.id, data: toDateStr(orig), dataDisplay: f.iva.scadenzaStr, tipo: "iva",
+        label: f.label, importo: -f.importo, urgente: diffDays <= 15, href: "/report-iva",
+      });
     }
-  }
-  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, today.getFullYear());
-  for (const [trimestre, ivaDebito] of Array.from(ivaPerTrimestre)) {
-    const scadenzaStr = scadenzaVersamentoIVA(trimestre);
-    const [d, m, y] = scadenzaStr.split("/").map(Number);
-    const scadenzaDate = new Date(y, m - 1, d);
-    if (scadenzaDate < today || scadenzaDate > in90) continue;
-    const credito = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const totaleIVA = IVA_VERSAMENTI[trimestre] ?? Math.max(0, Math.round((ivaDebito - credito) * 100) / 100);
-    const diffDays = (scadenzaDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-    eventi.push({
-      id: `iva-${trimestre}`,
-      data: toDateStr(scadenzaDate),
-      dataDisplay: scadenzaStr,
-      tipo: "iva",
-      label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}`,
-      importo: totaleIVA,
-      urgente: diffDays <= 15,
-      href: "/report-iva",
-    });
   }
 
   // Note spese da rimborsare (senza data precisa — mostrate come "questa settimana")

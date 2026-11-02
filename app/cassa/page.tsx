@@ -1,28 +1,21 @@
 import { Fragment } from "react";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapNotaSpese } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr, proiettaSaldo } from "@/lib/utils";
+import { formatEuro, formatDate, calcolaSaldoDinamico, proiettaSaldo } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
-import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
-import { getAnticipiSoci } from "@/lib/anticipi";
+import { SALDO_BASE, MUTUO, FIDO_BANCARIO } from "@/lib/config";
+import { getAnticipiSoci, riepilogoSoci } from "@/lib/anticipi";
+import { calcolaFlussi, fattureInForecast, type Flusso } from "@/lib/flussi";
+import { calcolaCopertura, type EsitoCopertura, type ScenarioCopertura } from "@/lib/copertura";
 
 export const revalidate = 0;
 
-type Flusso = {
-  id: string;
-  data: Date;
-  dataStr: string;
-  label: string;
-  importo: number;
-  tipo: "entrata" | "uscita_fornitore" | "iva" | "mutuo" | "anticipo_soci" | "ritenuta" | "abbonamento";
-  certo: boolean;
-  /** Uscita che decidiamo noi: nessuna controparte la reclama, nessuna scadenza
-   *  di legge. Rinviabile in base alla cassa, quindi fuori dal pavimento. */
-  discrezionale?: boolean;
-  /** Dovuta solo se arrivano ricavi ancora da fatturare: senza quelli non esiste.
-   *  Fuori dal pavimento, che misura cio' che devi pagare comunque. */
-  condizionato?: boolean;
-};
+function dataEtichetta(f: Flusso): string {
+  if (f.iva) return f.iva.scadenzaStr;
+  if (f.scaduta) return `oggi (sc. ${f.dataOriginale.toLocaleDateString("it-IT")})`;
+  const s = f.data.toLocaleDateString("it-IT");
+  return f.tipo === "entrata" && f.stimata ? `${s} (+30gg)` : s;
+}
 
 async function getData() {
   const [fatturePages, ricevutePages, notePages, anticipiSoci] = await Promise.all([
@@ -40,211 +33,35 @@ async function getData() {
   const in90 = new Date(today);
   in90.setDate(in90.getDate() + 90);
 
-  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
+  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
 
-  const flussi: Flusso[] = [];
+  const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci, today });
 
-  // Helper: data di incasso prevista per una fattura Inviata
-  // Priorità: campo Notion "Data incasso atteso" > dataInvio+30gg > oggi+30gg
-  function dataIncassoAttesaOf(f: { dataIncassoAtteso: string | null; dataInvio: string | null }, ref: Date): Date {
-    if (f.dataIncassoAtteso) return new Date(f.dataIncassoAtteso + "T00:00:00");
-    const base = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(ref);
-    base.setDate(base.getDate() + 30);
-    return base;
-  }
-
-  // Entrate attese — "Inviata" + "Da inviare" con dataIncassoAtteso (coerente con previsione)
-  const fattureAttese = fatture.filter((f) =>
-    f.status === "Inviata" ||
-    (f.status === "Da inviare" && f.dataIncassoAtteso != null)
-  );
+  const fattureAttese = fattureInForecast(fatture);
   const totaleAttesoAll = fattureAttese.reduce((s, f) => s + f.incassoNetto, 0);
 
-  // Uscite — da pagare (Ricevuta), scadute (In ritardo), attese (Da ricevere),
-  // e pagate su carta con addebito in banca ancora futuro
-  const oggiStr = toDateStr(today);
-  for (const f of ricevute) {
-    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
-    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
-    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
-    if (!statoOk || !dataRif) continue;
-    const d = new Date(dataRif);
-    d.setHours(0, 0, 0, 0);
-    const scaduta = d < today;
-    const dataEffettiva = scaduta ? new Date(today) : d;
-    const label = scaduta ? `${f.nome} ⚠ scaduta` : pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome;
-    flussi.push({
-      id: `fr-${f.id}`,
-      data: dataEffettiva,
-      dataStr: scaduta ? `oggi (sc. ${d.toLocaleDateString("it-IT")})` : d.toLocaleDateString("it-IT"),
-      label,
-      importo: -f.importo,
-      tipo: "uscita_fornitore",
-      certo: f.status !== "Da ricevere",
-    });
-  }
-
-  // Ritenuta d'acconto — da versare entro il 15 del mese successivo al pagamento (importoRitenuta da SDI/Notion)
-  for (const f of ricevute) {
-    if (!f.importoRitenuta) continue;
-    const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
-      : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
-      : null;
-    if (!dataBase) continue;
-    const scad = scadenzaRitenuta(dataBase);
-    if (scad < today) continue;
-    flussi.push({
-      id: `ritenuta-${f.id}`,
-      data: scad,
-      dataStr: scad.toLocaleDateString("it-IT"),
-      label: `Ritenuta ${f.nome}`,
-      importo: -f.importoRitenuta,
-      tipo: "ritenuta",
-      certo: true,
-    });
-  }
-
-  // Uscite IVA — debito da fatture emesse meno credito da acquisti
-  const ANNO_CORRENTE = today.getFullYear();
-  const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
-  for (const f of fatture) {
-    if (f.trimestreIVA && f.status !== "Da inviare") {
-      const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-      ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
-    }
-  }
-  // IVA attesa da fatture Inviata — usa dataIncassoAtteso se presente, altrimenti +30gg
-  // EDGE-06: se la data prevista è nel passato, usa oggi per il trimestre (evita Q già chiusi)
-  // Solo le bozze: una volta emessa la fattura il debito e' certo ed e' gia'
-  // contato sopra. Il trimestre segue la data fattura prevista, non l'incasso.
-  for (const f of fattureAttese) {
-    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
-    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
-  }
-  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO_CORRENTE);
-  for (const [trimestre, { certo: ivaDebCerto, atteso: ivaDebAtteso }] of Array.from(ivaPerTrimestre)) {
-    const scadenzaStr = scadenzaVersamentoIVA(trimestre);
-    const [d, m, y] = scadenzaStr.split("/").map(Number);
-    const scadenzaDate = new Date(y, m - 1, d);
-    scadenzaDate.setHours(0, 0, 0, 0);
-    if (scadenzaDate < today) continue; // già versata
-    const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
-    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
-    const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
-    const noteAtteso = !IVA_VERSAMENTI[trimestre] && ivaDebAtteso > 0 ? ` · +${formatEuro(ivaDebAtteso)} attesa` : "";
-    flussi.push({
-      id: `iva-${trimestre}`,
-      data: scadenzaDate,
-      dataStr: scadenzaStr,
-      label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`,
-      importo: -ivaNetta,
-      tipo: "iva",
-      certo: ivaDebCerto > 0, // incerto se solo da fatture attese
-      condizionato: ivaDebCerto === 0 && ivaDebAtteso > 0,
-    });
-  }
-
-  // Rate mutuo nei prossimi 90 giorni
-  for (let i = 0; i < MUTUO.nRateRimanenti; i++) {
-    const d = new Date(MUTUO.prossimaRata);
-    d.setMonth(d.getMonth() + i);
-    d.setHours(0, 0, 0, 0);
-    if (d > in90) break;
-    if (d >= today) {
-      flussi.push({
-        id: `mutuo-${i}`,
-        data: d,
-        dataStr: d.toLocaleDateString("it-IT"),
-        label: `Rata mutuo (${i + 1}/${MUTUO.nRateRimanenti})`,
-        importo: -MUTUO.importoRata,
-        tipo: "mutuo",
-        certo: true,
-      });
-    }
-  }
-
-  // Anticipo soci — rate pianificate (da Notion se configurato, altrimenti config.ts)
-  anticipiSoci.forEach((a, i) => {
-    const d = new Date(a.data); d.setHours(0, 0, 0, 0);
-    if (d < today || d > in90) return;
-    flussi.push({
-      id: `anticipo-${i}`,
-      data: d,
-      dataStr: d.toLocaleDateString("it-IT"),
-      label: "Anticipo soci",
-      importo: -a.importo,
-      tipo: "anticipo_soci",
-      certo: true,
-      discrezionale: true,
-    });
-  });
-
-  // Costi ricorrenti (mensili e non)
-  for (const costo of COSTI_RICORRENTI) {
-    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
-    const freq = costo.frequenzaMesi ?? 1;
-    for (let mo = 0; mo <= 4; mo++) {
-      const targetAnno = today.getFullYear() + Math.floor((today.getMonth() + mo) / 12);
-      const targetMese = (today.getMonth() + mo) % 12;
-      if (freq > 1 && costo.primaData) {
-        const diff = (targetAnno - costo.primaData.anno) * 12 + (targetMese - costo.primaData.mese);
-        if (diff < 0 || diff % freq !== 0) continue;
-      }
-      const lastDay = new Date(targetAnno, targetMese + 1, 0).getDate();
-      const d = new Date(targetAnno, targetMese, Math.min(costo.giornoAddebito, lastDay));
-      d.setHours(0, 0, 0, 0);
-      if (d < today || d > in90) continue;
-      flussi.push({
-        id: `ricorrente-${costo.label}-${mo}`,
-        data: d,
-        dataStr: d.toLocaleDateString("it-IT"),
-        label: costo.label,
-        importo: -importoLordo,
-        tipo: "abbonamento",
-        certo: true,
-      });
-    }
-  }
-
-  // Entrate attese: in timeline se hanno una data (dataIncassoAtteso o dataInvio)
-  // "Da inviare" con dataIncassoAtteso ha sempre la data → sempre in timeline
-  const fattureSenzaData: typeof fattureAttese = [];
-  for (const f of fattureAttese) {
-    if (!f.dataIncassoAtteso && !f.dataInvio) { fattureSenzaData.push(f); continue; }
-    const d = dataIncassoAttesaOf(f, today);
-    d.setHours(0, 0, 0, 0);
-    const dataEff = d < today ? new Date(today) : d;
-    const labelData = f.dataIncassoAtteso
-      ? dataEff.toLocaleDateString("it-IT")
-      : `${dataEff.toLocaleDateString("it-IT")} (+30gg)`;
-    const nomeLabel = f.status === "Da inviare" ? `⚑ ${f.nome}` : f.nome;
-    flussi.push({
-      id: `entrata-${f.id}`,
-      data: dataEff,
-      dataStr: labelData,
-      label: nomeLabel,
-      importo: f.incassoNetto,
-      tipo: "entrata",
-      certo: false,
-    });
-  }
-
   // Inviata senza alcuna data prevista → aggregato senza timeline
-  const totaleAtteso = fattureSenzaData.reduce((s, f) => s + f.incassoNetto, 0);
+  const senzaData = flussi.filter((f) => f.senzaData);
+  const fattureSenzaData = fatture.filter((f) => senzaData.some((s) => s.id === `entrata-${f.id}`));
+  const totaleAtteso = senzaData.reduce((s, f) => s + f.importo, 0);
 
   // Rimborsi spese aperti
   const totRimborsi = note.filter((n) => n.statusRimborso === "Da rimborsare").reduce((s, n) => s + n.importo, 0);
 
-  flussi.sort((a, b) => a.data.getTime() - b.data.getTime());
-
   // Flussi nei prossimi 90 giorni — l'IVA entra comunque, la scadenza è fissa
   // e va vista anche se cade oltre la finestra: oltre90 la marca in tabella.
   const flussi90 = flussi
-    .filter((f) => f.data <= in90 || f.tipo === "iva")
-    .map((f) => ({ ...f, oltre90: f.data > in90 }));
+    .filter((f) => !f.senzaData && (f.data <= in90 || f.tipo === "iva"))
+    .map((f) => {
+      const dataStr = dataEtichetta(f);
+      let label = f.label;
+      if (f.iva) {
+        const noteCredito = f.iva.override ? " · da commercialista" : f.iva.credito > 0 ? ` (−${formatEuro(f.iva.credito)} credito)` : "";
+        const noteAtteso = !f.iva.override && f.iva.atteso > 0 ? ` · +${formatEuro(f.iva.atteso)} attesa` : "";
+        label = `${f.label}${noteCredito}${noteAtteso}`;
+      }
+      return { ...f, label, dataStr, oltre90: f.data > in90 };
+    });
 
   // Proiezioni sugli stessi flussi mostrati in timeline: le card corrispondono
   // sempre alla somma delle righe elencate sotto.
@@ -274,11 +91,13 @@ async function getData() {
   }
   const dataMinimoStr = dataMinimo ? dataMinimo.toLocaleDateString("it-IT") : null;
 
-  return { flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale: SALDO_INIZIALE, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate: fattureAttese.filter(f => f.status === "Inviata").length };
+  const copertura = calcolaCopertura(SALDO_INIZIALE, flussi, FIDO_BANCARIO);
+
+  return { copertura, soci: riepilogoSoci(anticipiSoci), flussi90, flussiTutti: flussi, fattureAttese: fattureSenzaData, totaleAttesoAll, totaleAtteso, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale: SALDO_INIZIALE, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate: fattureAttese.filter(f => f.status === "Inviata").length };
 }
 
 export default async function CassaPage() {
-  const { flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate } = await getData();
+  const { copertura, soci, flussi90, fattureAttese, totaleAtteso, totaleAttesoAll, totRimborsi, saldoVincoli, saldoOttimistico, saldoAttuale, dataMinimoStr, usciteVincolate, usciteDiscrezionali, uscitePreviste, uscitePrevisteOltre90, nFattureInviate } = await getData();
 
   const liquiditaTotale = saldoAttuale + FIDO_BANCARIO;
   // Il fido va confrontato col caso base, non col migliore: e' da quello che ti devi proteggere.
@@ -347,6 +166,42 @@ export default async function CassaPage() {
           {sfondaFidoSempre
             ? `⚠ Il fido non basta nemmeno incassando tutto: mancano ${formatEuro(Math.abs(saldoOttimistico + FIDO_BANCARIO))}.`
             : `⚠ Anche rinviando gli anticipi soci, il fido non basta a coprire gli impegni vincolati${dataMinimoStr ? ` dal ${dataMinimoStr}` : ""}: mancano ${formatEuro(Math.abs(saldoVincoli + FIDO_BANCARIO))}.`}
+        </div>
+      )}
+
+      {/* Copertura anticipi */}
+      {copertura.length > 0 && (
+        <div style={{ marginBottom: "2rem" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.75rem" }}>
+            Copertura anticipi — saldo fino al primo versamento IVA successivo
+          </div>
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "6px", overflow: "hidden" }}>
+            <div className="table-scroll">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Data</th><th>Soci</th><th>Totale</th><th>Previsto, con le bozze</th><th>Prudente, solo fatture emesse</th></tr>
+                </thead>
+                <tbody>
+                  {copertura.map((c) => (
+                    <tr key={c.id}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: c.inRitardo ? "#ff4444" : "var(--muted)" }}>{formatDate(c.data)}{c.inRitardo ? " ⚠ in ritardo" : ""}</td>
+                      <td style={{ fontSize: "0.82rem", fontWeight: 500 }}>{c.soci.map((s) => `${s.socio} ${formatEuro(s.importo)}`).join(" · ")}</td>
+                      <td><span className="num">{formatEuro(c.importo)}</span></td>
+                      <td><EsitoCella s={c.previsto} /></td>
+                      <td><EsitoCella s={c.prudente} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {soci.length > 0 && (
+            <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", marginTop: "0.5rem" }}>
+              {soci.map((s) => (
+                <span key={s.socio}>{s.socio}: pagati {formatEuro(s.pagato)} · pianificati {formatEuro(s.pianificato)}</span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -454,6 +309,25 @@ export default async function CassaPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const ESITO: Record<EsitoCopertura, { label: string; color: string }> = {
+  coperto: { label: "Coperto", color: "#00c864" },
+  solo_fido: { label: "Solo col fido", color: "#ffb400" },
+  non_coperto: { label: "Non coperto", color: "#ff4444" },
+};
+
+function EsitoCella({ s }: { s: ScenarioCopertura }) {
+  const e = ESITO[s.esito];
+  return (
+    <div>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: e.color, fontWeight: 600 }}>{e.label}</span>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "2px" }}>
+        minimo {formatEuro(s.saldoMinimo)} il {formatDate(s.dataMinimo)}
+        {s.esito !== "coperto" ? ` · pagabili senza fido ${formatEuro(s.massimoSenzaFido)}` : ""}
+      </div>
     </div>
   );
 }

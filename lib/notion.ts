@@ -10,6 +10,7 @@ import type {
   NotaSpese,
   Cliente,
   Deal,
+  AnticipoSocio,
 } from "./types";
 import { calcolaTrimestre } from "./utils";
 
@@ -27,6 +28,7 @@ export const DB = {
   NOTE_SPESE: process.env.NOTION_DB_NOTE_SPESE!,
   CLIENTI: process.env.NOTION_DB_CLIENTI!,
   PIPELINE: process.env.NOTION_DB_PIPELINE!,
+  ANTICIPI: process.env.NOTION_DB_ANTICIPI!,
 } as const;
 
 // ─── Property helpers ────────────────────────────────────────────────────────
@@ -134,6 +136,18 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     cliente: getRelationId(p, "Clienti"),
     progetto: getRelationId(p, "Progetto"),
     createdAt: page.created_time,
+  };
+}
+
+export function mapAnticipo(page: PageObjectResponse): AnticipoSocio {
+  const p = page.properties;
+  return {
+    id: page.id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    socio: getSelect(p, "Socio") as any,
+    data: getDate(p, "Data") ?? "",
+    importo: getNumber(p, "Importo"),
+    stato: getSelect(p, "Stato") === "Pagato" ? "Pagato" : "Pianificato",
   };
 }
 

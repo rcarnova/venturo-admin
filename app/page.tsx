@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
 import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE } from "@/lib/config";
+import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE, FIDO_BANCARIO } from "@/lib/config";
+import { getAnticipiSoci } from "@/lib/anticipi";
+import { calcolaFlussi } from "@/lib/flussi";
+import { calcolaCopertura, peggioreEsito } from "@/lib/copertura";
 import type { MondayAlert, ScadenzaCalcolata } from "@/lib/types";
 
 export const revalidate = 0;
 
 async function getDashboardData() {
-  const [fatturePages, fattureRicevutePages, notePages, fornitori, pipelinePages] =
+  const [fatturePages, fattureRicevutePages, notePages, fornitori, pipelinePages, anticipiSoci] =
     await Promise.all([
       queryAll(DB.FATTURE),
       queryAll(DB.FATTURE_RICEVUTE),
       queryAll(DB.NOTE_SPESE),
       queryAll(DB.FORNITORI),
       queryAll(DB.PIPELINE),
+      getAnticipiSoci(),
     ]);
 
   const fornitoriMap = new Map(fornitori.map((p) => [p.id, mapFornitore(p).nome]));
@@ -43,7 +47,13 @@ async function getDashboardData() {
   if (daRimborsare.length > 0)
     alerts.push({ tipo: "rimborso_da_liquidare", count: daRimborsare.length, urgente: false, label: "Rimborsi da liquidare", href: "/note-spese?status=Da+rimborsare" });
 
-  const saldoAttuale = calcolaSaldoDinamico(fatture, fattureRicevute, SALDO_BASE.importo, SALDO_BASE.data);
+  const saldoAttuale = calcolaSaldoDinamico(fatture, fattureRicevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
+
+  const flussi = calcolaFlussi({ fatture, ricevute: fattureRicevute, anticipiSoci, today: new Date() });
+  const copertura = calcolaCopertura(saldoAttuale, flussi, FIDO_BANCARIO);
+  const nScoperti = copertura.filter((c) => c.previsto.esito !== "coperto" || c.inRitardo).length;
+  if (nScoperti > 0)
+    alerts.push({ tipo: "anticipo_scoperto", count: nScoperti, urgente: peggioreEsito(copertura) === "non_coperto", label: "Tranche di anticipi non coperte o in ritardo", href: "/cassa" });
 
   // Stats
   const fattureInviate = fatture.filter((f) => f.status === "Inviata");

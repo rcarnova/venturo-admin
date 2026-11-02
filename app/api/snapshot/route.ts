@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
 import {
-  calcolaSaldoDinamico, scadenzaVersamentoIVA, periodoTrimestre,
-  calcolaIVACreditoPerTrimestre, calcolaTrimestre, scadenzaRitenuta, toDateStr, proiettaSaldo,
+  calcolaSaldoDinamico, toDateStr, proiettaSaldo,
 } from "@/lib/utils";
-import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
-import { getAnticipiSoci } from "@/lib/anticipi";
+import { SALDO_BASE, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
+import { getAnticipiSoci, riepilogoSoci } from "@/lib/anticipi";
+import { calcolaFlussi } from "@/lib/flussi";
+import { calcolaCopertura } from "@/lib/copertura";
 
 export const dynamic = "force-dynamic";
 
@@ -35,126 +36,32 @@ export async function GET(req: NextRequest) {
   const oggiStr  = toDateStr(today);
 
   // ── Saldo ─────────────────────────────────────────────────────────────────
-  const saldoAttuale = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
+  const saldoAttuale = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
 
   // ── Entrate ───────────────────────────────────────────────────────────────
   const incassatoYTD = fatture
     .filter(f => f.status === "Pagata" && f.dataIncasso && f.dataIncasso.startsWith(`${ANNO}`) && f.dataIncasso <= oggiStr)
     .reduce((s, f) => s + f.incassoNetto, 0);
 
-  const fattureInForecast = fatture.filter(f =>
-    f.status === "Inviata" ||
-    (f.status === "Da inviare" && f.dataIncassoAtteso != null)
-  );
+  const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci, today });
 
   const entrateAttesaPerMese = Array(12).fill(0) as number[];
   const entrateDettaglio: { nome: string; status: string; importo: number; dataAttesa: string; stimata: boolean }[] = [];
-
-  for (const f of fattureInForecast) {
-    const stimata = !f.dataIncassoAtteso;
-    let d: Date;
-    if (f.dataIncassoAtteso) {
-      d = new Date(f.dataIncassoAtteso + "T00:00:00");
-    } else {
-      d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
-      d.setDate(d.getDate() + 30);
-    }
-    if (d < today) d = new Date(today);
-    const dataAttesa = toDateStr(d);
-    if (d.getFullYear() !== ANNO) {
-      entrateDettaglio.push({ nome: f.nome, status: f.status, importo: Math.round(f.incassoNetto * 100) / 100, dataAttesa, stimata });
-      continue;
-    }
-    const m = d.getMonth();
-    entrateAttesaPerMese[m] += f.incassoNetto;
-    entrateDettaglio.push({ nome: f.nome, status: f.status, importo: Math.round(f.incassoNetto * 100) / 100, dataAttesa, stimata });
+  for (const f of flussi) {
+    if (f.tipo !== "entrata") continue;
+    entrateDettaglio.push({ nome: f.nome ?? f.label, status: f.status ?? "", importo: Math.round(f.importo * 100) / 100, dataAttesa: toDateStr(f.data), stimata: !!f.stimata });
+    if (f.data.getFullYear() === ANNO) entrateAttesaPerMese[f.data.getMonth()] += f.importo;
   }
   const daIncassare = entrateAttesaPerMese.reduce((s, v) => s + v, 0);
 
   // ── Uscite ────────────────────────────────────────────────────────────────
   type Uscita = { data: string; mese: number; label: string; importo: number; tipo: string };
   const uscite: Uscita[] = [];
-
-  // IVA
-  const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
-  for (const f of fatture) {
-    if (f.trimestreIVA && f.status !== "Da inviare") {
-      const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-      ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
-    }
-  }
-  // Solo le bozze: una volta emessa la fattura il debito e' certo ed e' gia'
-  // contato sopra. Il trimestre segue la data fattura, non l'incasso.
-  for (const f of fattureInForecast) {
-    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
-    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
-  }
-  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
-  for (const [trimestre, { certo, atteso }] of Array.from(ivaPerTrimestre)) {
-    const scadStr = scadenzaVersamentoIVA(trimestre);
-    const [d, m, y] = scadStr.split("/").map(Number);
-    const scad = new Date(y, m - 1, d); scad.setHours(0, 0, 0, 0);
-    if (scad < today || scad > fineAnno) continue;
-    const credito = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const calcolata = Math.max(0, Math.round((certo + atteso - credito) * 100) / 100);
-    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? calcolata;
-    uscite.push({ data: toDateStr(scad), mese: scad.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${IVA_VERSAMENTI[trimestre] ? " [confermato]" : ""}`, importo: ivaNetta, tipo: "iva" });
-  }
-
-  // Mutuo
-  for (let i = 0; i < MUTUO.nRateRimanenti; i++) {
-    const d = new Date(MUTUO.prossimaRata); d.setMonth(d.getMonth() + i); d.setHours(0, 0, 0, 0);
-    if (d < today || d > fineAnno) continue;
-    uscite.push({ data: toDateStr(d), mese: d.getMonth(), label: "Rata mutuo", importo: MUTUO.importoRata, tipo: "mutuo" });
-  }
-
-  // Anticipo soci
-  for (const a of anticipiSoci) {
-    const d = new Date(a.data); d.setHours(0, 0, 0, 0);
-    if (d < today || d > fineAnno) continue;
-    uscite.push({ data: toDateStr(d), mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
-  }
-
-  // Fornitori
-  for (const f of ricevute) {
-    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
-    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
-    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
-    if (!statoOk || !dataRif) continue;
-    const d = new Date(dataRif); d.setHours(0, 0, 0, 0);
-    if (d > fineAnno) continue;
-    const dataEff = d < today ? new Date(today) : d;
-    uscite.push({ data: toDateStr(dataEff), mese: dataEff.getMonth(), label: d < today ? `${f.nome} ⚠ scaduta` : pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome, importo: f.importo, tipo: "fornitore" });
-  }
-
-  // Costi ricorrenti
-  for (const costo of COSTI_RICORRENTI) {
-    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
-    const freq = costo.frequenzaMesi ?? 1;
-    for (let m = 0; m <= 11; m++) {
-      if (freq > 1 && costo.primaData) {
-        const diff = (ANNO - costo.primaData.anno) * 12 + (m - costo.primaData.mese);
-        if (diff < 0 || diff % freq !== 0) continue;
-      }
-      const lastDay = new Date(ANNO, m + 1, 0).getDate();
-      const d = new Date(ANNO, m, Math.min(costo.giornoAddebito, lastDay)); d.setHours(0, 0, 0, 0);
-      if (d < today || d > fineAnno) continue;
-      uscite.push({ data: toDateStr(d), mese: m, label: costo.label, importo: importoLordo, tipo: "abbonamento" });
-    }
-  }
-
-  // Ritenute
-  for (const f of ricevute) {
-    if (!f.importoRitenuta) continue;
-    const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
-      : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
-      : null;
-    if (!dataBase) continue;
-    const scad = scadenzaRitenuta(dataBase);
-    if (scad < today || scad > fineAnno) continue;
-    uscite.push({ data: toDateStr(scad), mese: scad.getMonth(), label: `Ritenuta ${f.nome}`, importo: f.importoRitenuta, tipo: "ritenuta" });
+  const TIPI: Record<string, string> = { uscita_fornitore: "fornitore", iva: "iva", mutuo: "mutuo", anticipo_soci: "anticipo_soci", ritenuta: "ritenuta", abbonamento: "abbonamento" };
+  for (const f of flussi) {
+    if (!TIPI[f.tipo] || f.data > fineAnno) continue;
+    const label = f.tipo === "mutuo" ? "Rata mutuo" : f.iva && IVA_VERSAMENTI[f.iva.trimestre] ? `${f.label} [confermato]` : f.label;
+    uscite.push({ data: toDateStr(f.data), mese: f.data.getMonth(), label, importo: -f.importo, tipo: TIPI[f.tipo] });
   }
 
   uscite.sort((a, b) => a.data.localeCompare(b.data));
@@ -197,6 +104,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     generatedAt: new Date().toISOString(),
     anno: ANNO,
+    anticipi: {
+      soci: riepilogoSoci(anticipiSoci),
+      copertura: calcolaCopertura(saldoAttuale, flussi, FIDO_BANCARIO),
+    },
     saldo: {
       base: SALDO_BASE,
       attuale: saldoAttuale,

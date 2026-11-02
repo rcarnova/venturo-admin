@@ -47,6 +47,18 @@ export interface FatturaRicevuta {
   fileFattura: string | null;
 }
 
+// ─── ANTICIPI SOCI ───────────────────────────────────────────────────────────
+export type AnticipoStato = "Pianificato" | "Pagato";
+export type Socio = "Rosario" | "Massimo";
+
+export interface AnticipoSocio {
+  id: string;
+  socio: Socio;
+  data: string;      // pianificata, oppure data effettiva del bonifico se Pagato
+  importo: number;
+  stato: AnticipoStato;
+}
+
 // ─── SCADENZE IVA (calcolate dalle fatture) ──────────────────────────────────
 export interface ScadenzaCalcolata {
   trimestre: TrimestreIVA;
@@ -133,7 +145,7 @@ export interface Deal {
 
 // ─── MONDAY PROTOCOL ─────────────────────────────────────────────────────────
 export interface MondayAlert {
-  tipo: "fattura_da_inviare" | "fattura_ritardo" | "spesa_da_pagare" | "rimborso_da_liquidare" | "scadenza_iva";
+  tipo: "fattura_da_inviare" | "fattura_ritardo" | "spesa_da_pagare" | "rimborso_da_liquidare" | "scadenza_iva" | "anticipo_scoperto";
   count: number;
   urgente: boolean;
   label: string;

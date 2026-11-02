@@ -1,9 +1,10 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta } from "@/lib/notion";
-import { formatEuro, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, scadenzaRitenuta, calcolaIVACreditoPerTrimestre, calcolaTrimestre, toDateStr, proiettaSaldo } from "@/lib/utils";
+import { formatEuro, calcolaSaldoDinamico, toDateStr, proiettaSaldo } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
-import { SALDO_BASE, MUTUO, COSTI_RICORRENTI, FIDO_BANCARIO, IVA_VERSAMENTI } from "@/lib/config";
+import { SALDO_BASE, FIDO_BANCARIO } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
+import { calcolaFlussi, fattureInForecast, type Flusso } from "@/lib/flussi";
 
 export const revalidate = 0;
 
@@ -46,7 +47,7 @@ async function getData() {
   const meseCorrente = today.getMonth(); // 0-indexed
   const oggiStr = toDateStr(today);
 
-  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data);
+  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
 
   // ── Entrate ────────────────────────────────────────────────────────────
   // solo incassi effettivamente avvenuti (dataIncasso <= oggi)
@@ -62,106 +63,30 @@ async function getData() {
     }
   }
 
-  // Previsione: include "Inviata" + "Da inviare" con dataIncassoAtteso (simulazione flussi)
-  const fattureInForecast = fatture.filter(f =>
-    f.status === "Inviata" ||
-    (f.status === "Da inviare" && f.dataIncassoAtteso != null)
-  );
+  const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci, today });
+  const inForecast = fattureInForecast(fatture);
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
   const usciteOltreAnno: (Uscita & { scadenzaStr: string })[] = [];
-
-  // IVA — debito dalle fatture emesse (certo) + stima dalle bozze in programma
-  const ivaPerTrimestre = new Map<string, { certo: number; atteso: number }>();
-  for (const f of fatture) {
-    if (f.trimestreIVA && f.status !== "Da inviare") {
-      const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-      ivaPerTrimestre.set(f.trimestreIVA, { ...prev, certo: prev.certo + f.iva22 });
+  const TIPI: Partial<Record<Flusso["tipo"], Uscita["tipo"]>> = {
+    uscita_fornitore: "fornitore", iva: "iva", mutuo: "mutuo", anticipo_soci: "anticipo_soci", ritenuta: "ritenuta", abbonamento: "abbonamento",
+  };
+  for (const f of flussi) {
+    const tipo = TIPI[f.tipo];
+    if (!tipo) continue;
+    let label = f.tipo === "mutuo" ? "Rata mutuo" : f.label;
+    if (f.iva) {
+      const noteCredito = f.iva.override ? " · da commercialista" : f.iva.credito > 0 ? ` (−${formatEuro(f.iva.credito)} credito)` : "";
+      const noteAtteso = !f.iva.override && f.iva.atteso > 0 ? ` · +${formatEuro(Math.round(f.iva.atteso))} da incassi previsti` : "";
+      label = `${f.label}${noteCredito}${noteAtteso}`;
     }
-  }
-  // Solo le bozze: le emesse sono gia' nel debito certo sopra. Il trimestre
-  // segue la data fattura prevista, non l'incasso.
-  for (const f of fattureInForecast) {
-    if (f.status !== "Da inviare" || !f.trimestreIVA) continue;
-    const prev = ivaPerTrimestre.get(f.trimestreIVA) ?? { certo: 0, atteso: 0 };
-    ivaPerTrimestre.set(f.trimestreIVA, { ...prev, atteso: prev.atteso + f.iva22 });
-  }
-  // IVA credito: solo fatture già ricevute e non in reverse charge
-  const ricevutePerIVA = ricevute.filter(f => f.status !== "Da ricevere" && !f.reverseCharge);
-  const ivaCredito = calcolaIVACreditoPerTrimestre(ricevutePerIVA, COSTI_RICORRENTI, ANNO);
-  for (const [trimestre, { certo: ivaDebCerto, atteso: ivaDebAtteso }] of Array.from(ivaPerTrimestre)) {
-    const scadenzaStr = scadenzaVersamentoIVA(trimestre);
-    const [d, m, y] = scadenzaStr.split("/").map(Number);
-    const scadenzaDate = new Date(y, m - 1, d); scadenzaDate.setHours(0, 0, 0, 0);
-    if (scadenzaDate < today) continue;
-    const creditoTrimestre = Math.round((ivaCredito.get(trimestre) ?? 0) * 100) / 100;
-    const ivaNettaCalcolata = Math.max(0, Math.round((ivaDebCerto + ivaDebAtteso - creditoTrimestre) * 100) / 100);
-    const ivaNetta = IVA_VERSAMENTI[trimestre] ?? ivaNettaCalcolata;
-    const noteCredito = IVA_VERSAMENTI[trimestre] ? " · da commercialista" : creditoTrimestre > 0 ? ` (−${formatEuro(creditoTrimestre)} credito)` : "";
-    const noteAtteso = !IVA_VERSAMENTI[trimestre] && ivaDebAtteso > 0 ? ` · +${formatEuro(Math.round(ivaDebAtteso))} da incassi previsti` : "";
-    const voce: Uscita = { data: scadenzaDate, mese: scadenzaDate.getMonth(), label: `IVA ${trimestre} — ${periodoTrimestre(trimestre)}${noteCredito}${noteAtteso}`, importo: ivaNetta, tipo: "iva", condizionato: ivaDebCerto === 0 && ivaDebAtteso > 0 };
+    const voce: Uscita = { data: f.data, mese: f.data.getMonth(), label, importo: -f.importo, tipo, condizionato: f.condizionato };
     // Il versamento di un trimestre di quest'anno puo' scadere dopo il 31/12:
     // resta fuori dal totale dell'anno ma va mostrato, altrimenti pianifichi
     // dicembre senza sapere cosa arriva subito dopo.
-    if (scadenzaDate > fineAnno) usciteOltreAnno.push({ ...voce, scadenzaStr });
-    else uscite.push(voce);
-  }
-
-  // Mutuo
-  for (let i = 0; i < MUTUO.nRateRimanenti; i++) {
-    const d = new Date(MUTUO.prossimaRata); d.setMonth(d.getMonth() + i); d.setHours(0, 0, 0, 0);
-    if (d < today || d > fineAnno) continue;
-    uscite.push({ data: d, mese: d.getMonth(), label: "Rata mutuo", importo: MUTUO.importoRata, tipo: "mutuo" });
-  }
-
-  // Anticipo soci — rate pianificate (da Notion se configurato, altrimenti config.ts)
-  for (const a of anticipiSoci) {
-    const d = new Date(a.data); d.setHours(0, 0, 0, 0);
-    if (d < today || d > fineAnno) continue;
-    uscite.push({ data: d, mese: d.getMonth(), label: "Anticipo soci", importo: a.importo, tipo: "anticipo_soci" });
-  }
-
-  // Fornitori — include da pagare (Ricevuta), scadute (In ritardo), attese (Da ricevere)
-  for (const f of ricevute) {
-    const pagataFutura = f.status === "Pagata" && f.dataPagamento != null && f.dataPagamento > oggiStr;
-    const statoOk = f.status === "Ricevuta" || f.status === "In ritardo" || f.status === "Da ricevere" || pagataFutura;
-    const dataRif = pagataFutura ? f.dataPagamento : f.scadenza;
-    if (!statoOk || !dataRif) continue;
-    const d = new Date(dataRif); d.setHours(0, 0, 0, 0);
-    if (d > fineAnno) continue;
-    const scaduta = d < today;
-    const dataEffettiva = scaduta ? today : d;
-    const label = scaduta ? `${f.nome} ⚠ scaduta` : pagataFutura ? `💳 ${f.nome}` : f.status === "Da ricevere" ? `⚑ ${f.nome}` : f.nome;
-    uscite.push({ data: dataEffettiva, mese: dataEffettiva.getMonth(), label, importo: f.importo, tipo: "fornitore" });
-  }
-
-  // Costi ricorrenti (mensili e non)
-  for (const costo of COSTI_RICORRENTI) {
-    const importoLordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
-    const freq = costo.frequenzaMesi ?? 1;
-    for (let m = 0; m <= 11; m++) {
-      if (freq > 1 && costo.primaData) {
-        const diff = (ANNO - costo.primaData.anno) * 12 + (m - costo.primaData.mese);
-        if (diff < 0 || diff % freq !== 0) continue;
-      }
-      const lastDay = new Date(ANNO, m + 1, 0).getDate();
-      const d = new Date(ANNO, m, Math.min(costo.giornoAddebito, lastDay)); d.setHours(0, 0, 0, 0);
-      if (d < today || d > fineAnno) continue;
-      uscite.push({ data: d, mese: m, label: costo.label, importo: importoLordo, tipo: "abbonamento" });
-    }
-  }
-
-  // Ritenute d'acconto — 15 del mese successivo al pagamento fornitore (usa importoRitenuta da SDI/Notion)
-  for (const f of ricevute) {
-    if (!f.importoRitenuta) continue;
-    const dataBase = f.dataPagamento ? new Date(f.dataPagamento)
-      : f.scadenza ? (new Date(f.scadenza) < today ? new Date(today) : new Date(f.scadenza))
-      : null;
-    if (!dataBase) continue;
-    const scad = scadenzaRitenuta(dataBase);
-    if (scad < today || scad > fineAnno) continue;
-    uscite.push({ data: scad, mese: scad.getMonth(), label: `Ritenuta ${f.nome}`, importo: f.importoRitenuta, tipo: "ritenuta" });
+    if (f.data <= fineAnno) uscite.push(voce);
+    else if (f.iva) usciteOltreAnno.push({ ...voce, scadenzaStr: f.iva.scadenzaStr });
   }
 
   uscite.sort((a, b) => a.data.getTime() - b.data.getTime());
@@ -175,32 +100,19 @@ async function getData() {
   const entrateAttesaPerMese = Array(12).fill(0) as number[];
   const entrateDettaglioPerMese: { nome: string; importo: number }[][] = Array.from({ length: 12 }, () => []);
   const entrateAttesePianificate: EntrataAttesa[] = [];
-  for (const f of fattureInForecast) {
-    let d: Date;
-    const stimata = !f.dataIncassoAtteso;
-    if (f.dataIncassoAtteso) {
-      d = new Date(f.dataIncassoAtteso + "T00:00:00");
-    } else {
-      // Solo "Inviata" senza dataIncassoAtteso: stima +30gg da dataInvio o da oggi
-      d = f.dataInvio ? new Date(f.dataInvio + "T00:00:00") : new Date(today);
-      d.setDate(d.getDate() + 30);
-    }
-    if (d < today) d = new Date(today);
-    if (d.getFullYear() !== ANNO) continue;
-    const m = d.getMonth();
-    entrateAttesaPerMese[m] += f.incassoNetto;
-    entrateDettaglioPerMese[m].push({
-      nome: f.status === "Da inviare" ? `⚑ ${f.nome}` : f.nome,
-      importo: f.incassoNetto,
-    });
-    entrateAttesePianificate.push({ data: d, mese: m, nome: f.nome, importo: f.incassoNetto, status: f.status, stimata });
+  for (const f of flussi) {
+    if (f.tipo !== "entrata" || f.data.getFullYear() !== ANNO) continue;
+    const m = f.data.getMonth();
+    entrateAttesaPerMese[m] += f.importo;
+    entrateDettaglioPerMese[m].push({ nome: f.label, importo: f.importo });
+    entrateAttesePianificate.push({ data: f.data, mese: m, nome: f.nome ?? f.label, importo: f.importo, status: f.status ?? "", stimata: !!f.stimata });
   }
   entrateAttesePianificate.sort((a, b) => a.data.getTime() - b.data.getTime());
 
   // daIncassare derivato dalla timeline mensile → coerente con la somma delle righe
   const daIncassare = entrateAttesaPerMese.reduce((s, v) => s + v, 0);
   const daIncassareFuoriAnno = Math.round(
-    (fattureInForecast.reduce((s, f) => s + f.incassoNetto, 0) - daIncassare) * 100
+    (inForecast.reduce((s, f) => s + f.incassoNetto, 0) - daIncassare) * 100
   ) / 100;
   const totaleEntrateAttese = daIncassare;
 
