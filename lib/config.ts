@@ -17,6 +17,7 @@ export const FIDO_BANCARIO = 5_000;
 export const IVA_VERSAMENTI: Record<string, number> = {
   "Q1 2026": 247.97,   // confermato dal commercialista
   "Q2 2026": 4_284.05, // confermato dal commercialista
+  "Q3 2026": 1_247.88, // F24 commercialista, scadenza 16/11/2026 (1.235,52 + 1% interessi trimestrali)
 };
 
 // ─── IVA — versamenti effettivi ───────────────────────────────────────────────
