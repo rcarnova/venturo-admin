@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapFornitore, mapNotaSpese, mapDeal } from "@/lib/notion";
 import { formatEuro, isUrgent, scadenzaVersamentoIVA, periodoTrimestre, calcolaSaldoDinamico, calcolaIVACreditoPerTrimestre } from "@/lib/utils";
-import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE, FIDO_BANCARIO } from "@/lib/config";
+import { SALDO_BASE, COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE, FIDO_BANCARIO, TARGET_FATTURATO, PIPE_GIORNI_ALLA_FATTURA } from "@/lib/config";
+import { calcolaAvanzamento, type AvanzamentoTarget } from "@/lib/target";
 import { getAnticipiSoci } from "@/lib/anticipi";
 import { calcolaFlussi } from "@/lib/flussi";
 import { calcolaCopertura, peggioreEsito } from "@/lib/copertura";
@@ -137,7 +138,14 @@ async function getDashboardData() {
   const totaleDaFatturare = Math.max(0, totaleVenduto - totaleFatturato);
   const totaleOpenPipeline = openDeals.reduce((s, d) => s + d.valore, 0);
 
+  // Target di fatturato per anno di emissione
+  const targets: AvanzamentoTarget[] = Object.entries(TARGET_FATTURATO)
+    .map(([anno, target]) => calcolaAvanzamento(Number(anno), target, fatture, deals, today))
+    .filter((t) => t.anno >= ANNO_CORRENTE)
+    .sort((a, b) => a.anno - b.anno);
+
   return {
+    targets,
     alerts,
     stats: { saldoAttuale, totaleDaIncassare, totaleDaInviareConData, fattureInviateMesiExtra, totalePagato, totaleIVAPagata, totaleIVAResiduaDaVersare, totaleSpese, totaleRimborsi, totaleFornitori, ivaProximaScadenza },
     scadenzeCalcolate,
@@ -148,7 +156,7 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const { alerts, stats, scadenzeCalcolate, fornitoriDaPagare, prossimaScadenza, pipeline } = await getDashboardData();
+  const { alerts, stats, scadenzeCalcolate, fornitoriDaPagare, prossimaScadenza, pipeline, targets } = await getDashboardData();
   const ivaResiduaLabel = stats.totaleIVAResiduaDaVersare > 0 ? `di cui ${formatEuro(stats.totaleIVAResiduaDaVersare)} IVA ancora da versare` : "IVA corrente versata";
   const today = new Date().toLocaleDateString("it-IT", {
     weekday: "long",
@@ -345,6 +353,27 @@ export default async function DashboardPage() {
         )}
       </section>
 
+      {/* Target fatturato */}
+      {targets.length > 0 && (
+        <section style={{ marginBottom: "2.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Target fatturato</span>
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+          </div>
+          <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginBottom: "0.75rem" }}>
+            <span><span style={{ color: "var(--sage)" }}>■</span> Emesso</span>
+            <span><span style={{ color: "var(--accent)" }}>■</span> Programmato (da inviare)</span>
+            <span><span style={{ color: "#ffb400" }}>■</span> Pipe pesata</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {targets.map((t) => <TargetCard key={t.anno} t={t} />)}
+          </div>
+          <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.5rem" }}>
+            Imponibile IVA esclusa, per anno di data invio. La pipe aperta conta nell&apos;anno della prima fattura stimata ({PIPE_GIORNI_ALLA_FATTURA} gg dopo la chiusura) per il valore pieno, senza dividere i SAL. Target in lib/config.ts.
+          </p>
+        </section>
+      )}
+
       {/* Fatture fornitori da pagare */}
       {fornitoriDaPagare.length > 0 && (
         <section style={{ marginBottom: "2.5rem" }}>
@@ -458,6 +487,67 @@ function StatCard({ label, value, color, note, tier }: { label: string; value: s
           {note}
         </div>
       )}
+    </div>
+  );
+}
+
+function TargetCard({ t }: { t: AvanzamentoTarget }) {
+  const pct = (v: number) => (t.target > 0 ? (v / t.target) * 100 : 0);
+  // Barra in scala sul massimo tra target e previsto, cosi' l'eccedenza resta visibile.
+  const scala = Math.max(t.target, t.previsto);
+  const w = (v: number) => `${scala > 0 ? (v / scala) * 100 : 0}%`;
+  const pctCerto = Math.round(pct(t.certo));
+  const pctPrevisto = Math.round(pct(t.previsto));
+  const raggiunto = t.gapPrevisto <= 0;
+  const statoColore = t.gapCerto <= 0 ? "var(--sage)" : raggiunto ? "#ffb400" : "#ff4444";
+  const statoLabel = t.gapCerto <= 0
+    ? "Raggiunto con il fatturato certo"
+    : raggiunto
+    ? "Raggiungibile solo se la pipe chiude"
+    : `Mancano ${formatEuro(Math.round(t.gapPrevisto))} anche con la pipe`;
+
+  return (
+    <div className="stat-card" style={{ padding: "1rem 1.1rem" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.6rem" }}>
+          <span style={{ fontFamily: "var(--font-grotesk)", fontWeight: 700, fontSize: "1.05rem", color: "var(--text)" }}>{t.anno}</span>
+          <span className="num" style={{ fontSize: "0.8rem", color: "var(--muted)" }}>target {formatEuro(t.target)}</span>
+        </div>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: statoColore }}>{statoLabel}</span>
+      </div>
+
+      <div style={{ position: "relative", height: "10px", background: "var(--surface-3)", borderRadius: "3px", overflow: "hidden", display: "flex" }}>
+        <div style={{ width: w(t.emesso), background: "var(--sage)" }} />
+        <div style={{ width: w(t.programmato), background: "var(--accent)" }} />
+        <div style={{ width: w(t.pipePesata), background: "#ffb400", opacity: 0.85 }} />
+        {t.previsto > t.target && (
+          <div style={{ position: "absolute", top: 0, bottom: 0, left: w(t.target), width: "2px", background: "var(--text)" }} />
+        )}
+      </div>
+
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0.6rem", marginTop: "0.85rem" }}>
+        <MiniStat label="Emesso" value={formatEuro(Math.round(t.emesso))} color="var(--sage)" />
+        <MiniStat label="Programmato" value={formatEuro(Math.round(t.programmato))} color="var(--accent)" />
+        <MiniStat label="Certo" value={`${formatEuro(Math.round(t.certo))} · ${pctCerto}%`} color="var(--text)" />
+        <MiniStat label={`Pipe pesata · ${t.nDeal} deal`} value={formatEuro(Math.round(t.pipePesata))} color="#ffb400" note={`lorda ${formatEuro(Math.round(t.pipeLorda))}`} />
+        <MiniStat label="Previsto" value={`${formatEuro(Math.round(t.previsto))} · ${pctPrevisto}%`} color={raggiunto ? "var(--sage)" : "var(--text)"} />
+        <MiniStat
+          label={t.gapCerto > 0 ? "Da vendere ancora" : "Sopra target"}
+          value={formatEuro(Math.round(Math.abs(t.gapCerto > 0 ? Math.max(0, t.gapPrevisto) : t.gapCerto)))}
+          color={t.gapCerto > 0 && !raggiunto ? "#ff4444" : "var(--muted)"}
+          note={t.gapCerto > 0 ? `oltre la pipe pesata · ${formatEuro(Math.round(t.gapCerto))} senza pipe` : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color, note }: { label: string; value: string; color: string; note?: string }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.25rem" }}>{label}</div>
+      <div className="num" style={{ fontSize: "0.9rem", fontWeight: 600, color }}>{value}</div>
+      {note && <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--muted-2)", marginTop: "0.2rem" }}>{note}</div>}
     </div>
   );
 }

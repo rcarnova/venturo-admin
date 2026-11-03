@@ -2,14 +2,9 @@ import { DB, notion, queryAll, mapDeal, mapFattura } from "@/lib/notion";
 import { formatEuro } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/PageHeader";
 import type { Deal, DealStatus } from "@/lib/types";
+import { PROB_WEIGHT } from "@/lib/target";
 
 export const revalidate = 0;
-
-const PROB_WEIGHT: Record<string, number> = {
-  "Alta 75-100%": 0.875,
-  "Media 40-74%": 0.57,
-  "Bassa 0-39%": 0.20,
-};
 
 const STATUS_ORDER: DealStatus[] = ["Open", "Freeze", "Won", "Lost"];
 

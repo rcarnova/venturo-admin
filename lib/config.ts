@@ -10,6 +10,19 @@ export const SALDO_BASE = {
 // ─── Fido bancario ───────────────────────────────────────────────────────────
 export const FIDO_BANCARIO = 5_000;
 
+// ─── Target di fatturato annuo ────────────────────────────────────────────────
+// Imponibile IVA esclusa (campo "Importo" delle fatture), per anno di emissione.
+// 2027: 144.000 € = soglia per 3.000 €/mese netti a socio (stima 03/11/2026:
+// split 50/50, gestione separata INPS, IRPEF ordinaria, costi Studio ~3k/anno).
+export const TARGET_FATTURATO: Record<number, number> = {
+  2026: 90_000,
+  2027: 144_000,
+};
+
+// Giorni stimati tra la chiusura di un deal e la sua prima fattura: decide in
+// quale anno conta la pipe aperta. Conta l'intero valore del deal, non i SAL.
+export const PIPE_GIORNI_ALLA_FATTURA = 30;
+
 // ─── IVA versamenti — override commercialista ─────────────────────────────────
 // Quando il commercialista fornisce la cifra esatta, inseriscila qui.
 // Sovrascrive il calcolo automatico (utile quando alcune spese non sono detraibili).
