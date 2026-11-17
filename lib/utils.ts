@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { IVA_VERSAMENTI, IVA_VERSATE } from "./config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -181,5 +182,11 @@ export function calcolaSaldoDinamico(
     .filter(a => a.stato === "Pagato" && a.data > baseData && a.data <= oggi)
     .reduce((s, a) => s + a.importo, 0);
 
-  return Math.round((baseImporto + incassi - pagamenti - anticipiPagati) * 100) / 100;
+  // F24 IVA gia' pagati dopo la riconciliazione: dal momento del pagamento il
+  // trimestre esce dai flussi futuri, quindi va tolto qui.
+  const ivaVersata = Object.entries(IVA_VERSATE)
+    .filter(([t, d]) => d > baseData && d <= oggi && IVA_VERSAMENTI[t] != null)
+    .reduce((s, [t]) => s + IVA_VERSAMENTI[t], 0);
+
+  return Math.round((baseImporto + incassi - pagamenti - anticipiPagati - ivaVersata) * 100) / 100;
 }

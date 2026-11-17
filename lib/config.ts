@@ -37,10 +37,13 @@ export const IVA_VERSAMENTI: Record<string, number> = {
 // Data del pagamento F24, non la scadenza. Finche' un trimestre non e' qui, il
 // report lo mostra come "da confermare" anche se la scadenza e' passata: una
 // scadenza trascorsa non prova che il versamento sia avvenuto.
+// Un versamento successivo a SALDO_BASE viene tolto dal saldo, con l'importo
+// di IVA_VERSAMENTI: serve quindi anche l'importo, non solo la data.
 // Formato: "Q2 2026" → "2026-08-25"
 export const IVA_VERSATE: Record<string, string> = {
   "Q1 2026": "2026-05-18", // scadenza 16/05 slittata al lunedi
   "Q2 2026": "2026-08-16", // F24 pagato da Massimo dal conto personale, rimborsato il 25/08
+  "Q3 2026": "2026-11-16", // F24 1.247,88 € dal conto Venturo
 };
 
 // ─── Mutuo ───────────────────────────────────────────────────────────────────

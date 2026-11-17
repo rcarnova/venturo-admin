@@ -3,7 +3,7 @@
 // simulazione, snapshot e scadenziario leggono da qui e filtrano sul proprio
 // orizzonte: nessuna pagina ricalcola i flussi per conto suo.
 import type { Fattura, FatturaRicevuta, AnticipoSocio } from "./types";
-import { COSTI_RICORRENTI, IVA_VERSAMENTI, MUTUO } from "./config";
+import { COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE, MUTUO } from "./config";
 import {
   calcolaIVACreditoPerTrimestre, periodoTrimestre, scadenzaRitenuta,
   scadenzaVersamentoIVA, toDateStr,
@@ -150,7 +150,7 @@ function iva(fatture: Fattura[], ricevute: FatturaRicevuta[], today: Date): Flus
     const [dd, mm, yy] = scadenzaStr.split("/").map(Number);
     const sc = new Date(yy, mm - 1, dd);
     sc.setHours(0, 0, 0, 0);
-    if (sc < today) continue; // gia' versata
+    if (sc < today || trimestre in IVA_VERSATE) continue; // gia' versata
     const cred = r2(credito.get(trimestre) ?? 0);
     const override = trimestre in IVA_VERSAMENTI;
     const netta = IVA_VERSAMENTI[trimestre] ?? Math.max(0, r2(certo + atteso - cred));
