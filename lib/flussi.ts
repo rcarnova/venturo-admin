@@ -219,7 +219,7 @@ function anticipi(lista: AnticipoSocio[], today: Date): Flusso[] {
   });
 }
 
-/** Tutti i flussi futuri in ordine di data. Il filtro sull'orizzonte tocca al chiamante. */
+/** Tutti i flussi futuri in ordine di data, incassi prima. Il filtro sull'orizzonte tocca al chiamante. */
 export function calcolaFlussi(
   { fatture, ricevute, anticipiSoci, today }:
   { fatture: Fattura[]; ricevute: FatturaRicevuta[]; anticipiSoci: AnticipoSocio[]; today: Date },
@@ -228,5 +228,7 @@ export function calcolaFlussi(
   return [
     ...fornitori(ricevute, oggi), ...ritenute(ricevute, oggi), ...iva(fatture, ricevute, oggi),
     ...mutuo(oggi), ...anticipi(anticipiSoci, oggi), ...ricorrenti(oggi), ...entrate(fatture, oggi),
-  ].sort((a, b) => a.data.getTime() - b.data.getTime());
+  // A parita' di giorno gli incassi vengono prima delle uscite, come nel test di
+  // copertura: il saldo progressivo non deve scendere a meta' giornata.
+  ].sort((a, b) => a.data.getTime() - b.data.getTime() || b.importo - a.importo);
 }
