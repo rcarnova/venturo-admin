@@ -27,6 +27,8 @@ export interface Fattura {
   fileFattura: string | null;
   cliente: string | null;
   progetto: string | null;
+  /** Fatturata da un socio con la sua partita IVA: conta nel progetto, non nello Studio. */
+  fuoriStudio: boolean;
   createdAt: string;
 }
 

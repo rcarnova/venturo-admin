@@ -47,7 +47,7 @@ export function calcolaAvanzamento(
   let emesso = 0;
   let programmato = 0;
   for (const f of fatture) {
-    if (!nellAnno(f.dataInvio)) continue;
+    if (!nellAnno(f.dataInvio) || f.fuoriStudio) continue; // fatturato dello Studio, non dei soci
     if (f.status === "Da inviare") programmato += f.importo;
     else emesso += f.importo;
   }
