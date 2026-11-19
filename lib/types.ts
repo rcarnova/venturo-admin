@@ -29,6 +29,8 @@ export interface Fattura {
   progetto: string | null;
   /** Fatturata da un socio con la sua partita IVA: conta nel progetto, non nello Studio. */
   fuoriStudio: boolean;
+  /** Fattura senza rivalsa INPS 4%: l'imponibile IVA coincide con l'importo. */
+  senzaRivalsa: boolean;
   createdAt: string;
 }
 

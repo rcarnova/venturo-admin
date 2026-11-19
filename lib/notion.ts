@@ -118,7 +118,9 @@ export function mapFattura(page: PageObjectResponse): Fattura {
   // nel totale del progetto ma per lo Studio non genera IVA, ritenuta ne' incasso.
   const fuoriStudio = getCheckbox(p, "Fuori Studio");
   const trimestreIVA = dataInvio && !fuoriStudio ? calcolaTrimestre(dataInvio) : null;
-  const baseIva = fuoriStudio ? 0 : importo * 1.04; // imponibile IVA = compenso + INPS rivalsa 4%
+  // "Senza rivalsa INPS": per alcuni bandi la rivalsa del 4% non va in fattura.
+  const senzaRivalsa = getCheckbox(p, "Senza rivalsa INPS");
+  const baseIva = fuoriStudio ? 0 : importo * (senzaRivalsa ? 1 : 1.04); // imponibile IVA = compenso + INPS rivalsa 4%
   const iva22 = Math.round(baseIva * 0.22 * 100) / 100;
   const ritenuta = Math.round(baseIva * 0.20 * 100) / 100; // 20% su compenso + INPS rivalsa (base imponibile IVA, art. 25 DPR 600/73)
   const incassoNetto = Math.round((baseIva + iva22 - ritenuta) * 100) / 100; // lordo IVA, netto ritenuta
@@ -139,6 +141,7 @@ export function mapFattura(page: PageObjectResponse): Fattura {
     cliente: getRelationId(p, "Clienti"),
     progetto: getRelationId(p, "Progetto"),
     fuoriStudio,
+    senzaRivalsa,
     createdAt: page.created_time,
   };
 }
