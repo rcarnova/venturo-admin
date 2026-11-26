@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { IVA_VERSAMENTI, IVA_VERSATE } from "./config";
+import { COSTI_RICORRENTI, IVA_VERSAMENTI, IVA_VERSATE, MUTUO } from "./config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -188,5 +188,36 @@ export function calcolaSaldoDinamico(
     .filter(([t, d]) => d > baseData && d <= oggi && IVA_VERSAMENTI[t] != null)
     .reduce((s, [t]) => s + IVA_VERSAMENTI[t], 0);
 
-  return Math.round((baseImporto + incassi - pagamenti - anticipiPagati - ivaVersata) * 100) / 100;
+  return Math.round((baseImporto + incassi - pagamenti - anticipiPagati - ivaVersata
+    - usciteProgrammateTra(baseData, oggi)) * 100) / 100;
+}
+
+/** Rate del mutuo e costi ricorrenti (canone, linea di credito) con data in
+ *  (da, a]. Passata la data escono dai flussi futuri, quindi il saldo li deve
+ *  scalare: stesso calendario di lib/flussi.ts. */
+export function usciteProgrammateTra(da: string, a: string): number {
+  let tot = 0;
+  for (let i = 0; i < MUTUO.nRateRimanenti; i++) {
+    const d = new Date(MUTUO.prossimaRata);
+    d.setMonth(d.getMonth() + i);
+    const ds = toDateStr(d);
+    if (ds > da && ds <= a) tot += MUTUO.importoRata;
+  }
+  const [ya, ma] = da.split("-").map(Number);
+  const [yb, mb] = a.split("-").map(Number);
+  for (const costo of COSTI_RICORRENTI) {
+    const lordo = Math.round(costo.importoNetto * (1 + costo.aliquotaIVA) * 100) / 100;
+    const freq = costo.frequenzaMesi ?? 1;
+    for (let k = (ya * 12 + ma - 1); k <= (yb * 12 + mb - 1); k++) {
+      const anno = Math.floor(k / 12), mese = k % 12;
+      if (freq > 1 && costo.primaData) {
+        const diff = (anno - costo.primaData.anno) * 12 + (mese - costo.primaData.mese);
+        if (diff < 0 || diff % freq !== 0) continue;
+      }
+      const giorno = Math.min(costo.giornoAddebito, new Date(anno, mese + 1, 0).getDate());
+      const ds = toDateStr(new Date(anno, mese, giorno));
+      if (ds > da && ds <= a) tot += lordo;
+    }
+  }
+  return Math.round(tot * 100) / 100;
 }

@@ -47,6 +47,9 @@ export const IVA_VERSATE: Record<string, string> = {
 };
 
 // ─── Mutuo ───────────────────────────────────────────────────────────────────
+// Calendario fisso: prima rata residua dopo SALDO_BASE e numero di rate da li'.
+// Non spostare prossimaRata dopo ogni addebito: le rate gia' passate le scala
+// il saldo dinamico. Aggiornala solo insieme a una nuova riconciliazione.
 export const MUTUO = {
   importoRata: 136.79,
   prossimaRata: new Date(2026, 10, 21), // 21 novembre 2026 — rata ottobre pagata il 21/10/2026
