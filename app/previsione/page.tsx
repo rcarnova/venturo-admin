@@ -4,11 +4,12 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import { SALDO_BASE, FIDO_BANCARIO } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
-import { calcolaFlussi, fattureInForecast, type Flusso } from "@/lib/flussi";
+import { calcolaFlussi, type Flusso } from "@/lib/flussi";
 
 export const revalidate = 0;
 
-const ANNO = new Date().getFullYear();
+// Anni consultabili: quello in corso e il successivo (?anno=AAAA).
+const ANNO_CORRENTE = new Date().getFullYear();
 
 const MESI_FULL  = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 const MESI_SHORT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
@@ -32,7 +33,7 @@ type EntrataAttesa = {
   stimata: boolean; // true = data +30gg stimata, false = dataIncassoAtteso da Notion
 };
 
-async function getData() {
+async function getData(ANNO: number) {
   const [fatturePages, ricevutePages, anticipiSoci] = await Promise.all([
     queryAll(DB.FATTURE),
     queryAll(DB.FATTURE_RICEVUTE),
@@ -44,10 +45,14 @@ async function getData() {
 
   const today    = new Date(); today.setHours(0, 0, 0, 0);
   const fineAnno = new Date(ANNO, 11, 31, 23, 59, 59);
-  const meseCorrente = today.getMonth(); // 0-indexed
   const oggiStr = toDateStr(today);
+  // Anno futuro: la timeline parte da gennaio, dal saldo previsto al 31/12
+  // dell'anno in corso. Stesso motore di flussi, nessun calcolo a parte.
+  const futuro = ANNO > today.getFullYear();
+  const inizioAnno = new Date(ANNO, 0, 1);
+  const meseCorrente = futuro ? 0 : today.getMonth(); // 0-indexed
 
-  const SALDO_INIZIALE = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
+  const saldoOggi = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
 
   // ── Entrate ────────────────────────────────────────────────────────────
   // solo incassi effettivamente avvenuti (dataIncasso <= oggi)
@@ -64,7 +69,9 @@ async function getData() {
   }
 
   const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci, today });
-  const inForecast = fattureInForecast(fatture);
+  const SALDO_INIZIALE = futuro
+    ? Math.round((saldoOggi + flussi.filter(f => f.data < inizioAnno).reduce((s, f) => s + f.importo, 0)) * 100) / 100
+    : saldoOggi;
 
   // ── Uscite fino a fine anno ────────────────────────────────────────────
   const uscite: Uscita[] = [];
@@ -85,8 +92,9 @@ async function getData() {
     // Il versamento di un trimestre di quest'anno puo' scadere dopo il 31/12:
     // resta fuori dal totale dell'anno ma va mostrato, altrimenti pianifichi
     // dicembre senza sapere cosa arriva subito dopo.
+    if (f.data < inizioAnno) continue;
     if (f.data <= fineAnno) uscite.push(voce);
-    else if (f.iva) usciteOltreAnno.push({ ...voce, scadenzaStr: f.iva.scadenzaStr });
+    else if (f.iva && f.iva.trimestre.endsWith(String(ANNO))) usciteOltreAnno.push({ ...voce, scadenzaStr: f.iva.scadenzaStr });
   }
 
   uscite.sort((a, b) => a.data.getTime() - b.data.getTime());
@@ -111,8 +119,10 @@ async function getData() {
 
   // daIncassare derivato dalla timeline mensile → coerente con la somma delle righe
   const daIncassare = entrateAttesaPerMese.reduce((s, v) => s + v, 0);
+  // Solo gli incassi degli anni successivi: per un anno futuro quelli
+  // dell'anno in corso sono gia' dentro il saldo di partenza.
   const daIncassareFuoriAnno = Math.round(
-    (inForecast.reduce((s, f) => s + f.incassoNetto, 0) - daIncassare) * 100
+    flussi.filter(f => f.tipo === "entrata" && f.data > fineAnno).reduce((s, f) => s + f.importo, 0) * 100
   ) / 100;
   const totaleEntrateAttese = daIncassare;
 
@@ -181,10 +191,13 @@ async function getData() {
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
     saldoAttuale: SALDO_INIZIALE,
+    saldoOggi, futuro, ANNO,
   };
 }
 
-export default async function PrevisioneAnnualePage() {
+export default async function PrevisioneAnnualePage({ searchParams }: { searchParams: { anno?: string } }) {
+  const annoRichiesto = Number(searchParams?.anno);
+  const annoScelto = annoRichiesto === ANNO_CORRENTE + 1 ? annoRichiesto : ANNO_CORRENTE;
   const {
     noteAnticipo,
     incassatoYTD, meseCorrente,
@@ -196,19 +209,29 @@ export default async function PrevisioneAnnualePage() {
     righe,
     incassatoH1, incassatoH2, entrateAttesaH1, entrateAttesaH2,
     usciteH1, usciteH2, ivaH1, ivaH2, mutuoH2, antiH2, fornH2, abbH2, ritH2,
-    saldoAttuale,
-  } = await getData();
+    saldoAttuale, saldoOggi, futuro, ANNO,
+  } = await getData(annoScelto);
 
   return (
     <div>
       <PageHeader
         title={`Previsione ${ANNO}`}
-        subtitle={`${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale ${formatEuro(saldoAttuale)}`}
+        subtitle={futuro
+          ? `Gennaio → Dicembre ${ANNO} · saldo previsto al 01/01 ${formatEuro(saldoAttuale)} · oggi ${formatEuro(saldoOggi)}`
+          : `${MESI_FULL[meseCorrente]} → Dicembre ${ANNO} · saldo attuale ${formatEuro(saldoAttuale)}`}
       />
       <TabNav tabs={[
-        { href: "/previsione", label: "Previsione anno", active: true },
+        { href: "/previsione", label: `Previsione ${ANNO_CORRENTE}`, active: !futuro },
+        { href: `/previsione?anno=${ANNO_CORRENTE + 1}`, label: `Previsione ${ANNO_CORRENTE + 1}`, active: futuro },
         { href: "/simulazione", label: "Simula scenario", active: false },
       ]} />
+
+      {futuro && (
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", lineHeight: 1.6, margin: "-0.75rem 0 1.5rem" }}>
+          Conta solo le fatture gia' su Notion (emesse o in bozza con data di incasso) e le uscite note.
+          Deal in pipeline, IRAP e imposte dei soci sono fuori: per quelli usa Simula scenario.
+        </div>
+      )}
 
       {/* Entrate / Uscite stat cards */}
       <div className="grid-2col" style={{ marginBottom: "1.75rem" }}>
@@ -255,7 +278,7 @@ export default async function PrevisioneAnnualePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             <RigaValore label="Anticipo soci" value={formatEuro(totaleAnticipo2026)} color="var(--accent)" note={noteAnticipo} />
             <RigaValore label={`IVA (${uscite.filter(u => u.tipo === "iva").map(u => u.label.split(" — ")[0].replace("IVA ", "")).join(" + ") || "—"})`} value={formatEuro(totaleIVA2026)} color="#ff4444" note="versamenti trimestrali" />
-            <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note="rate fino a dicembre" />
+            <RigaValore label="Mutuo" value={formatEuro(Math.round(totaleMutuo2026 * 100) / 100)} color="var(--muted)" note={`rate fino a dicembre ${ANNO}`} />
             <RigaValore label="Fornitori da pagare" value={formatEuro(totaleFornitore2026)} color="#ffb400" note="fatture ricevute con scadenza" />
             {totaleAbbonamenti2026 > 0 && (
               <RigaValore label="Abbonamenti ricorrenti" value={formatEuro(Math.round(totaleAbbonamenti2026 * 100) / 100)} color="var(--muted)" note="Google Workspace + altri mensili" />
@@ -301,7 +324,7 @@ export default async function PrevisioneAnnualePage() {
             {formatEuro(saldoAttuale + FIDO_BANCARIO)}
           </div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--muted-2)", marginTop: "0.3rem" }}>
-            saldo attuale + fido
+            {futuro ? `saldo al 01/01/${ANNO} + fido` : "saldo attuale + fido"}
           </div>
         </div>
         <div className="stat-card" style={{ borderColor: "var(--border-hover)" }}>
@@ -374,7 +397,7 @@ export default async function PrevisioneAnnualePage() {
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.45rem" }}>
               <RigaValore label="Uscite pianificate H2" value={formatEuro(Math.round(usciteH2))} color="#ff4444" />
             </div>
-            {ivaH2 > 0    && <RigaValore label="  di cui IVA Q3" value={formatEuro(Math.round(ivaH2))}    color="var(--muted)" />}
+            {ivaH2 > 0    && <RigaValore label="  di cui IVA" value={formatEuro(Math.round(ivaH2))}    color="var(--muted)" />}
             {mutuoH2 > 0  && <RigaValore label="  di cui Mutuo"  value={formatEuro(Math.round(mutuoH2))}  color="var(--muted)" />}
             {antiH2 > 0   && <RigaValore label="  di cui Anticipo soci" value={formatEuro(Math.round(antiH2))} color="var(--muted)" />}
             {fornH2 > 0   && <RigaValore label="  di cui Fornitori" value={formatEuro(Math.round(fornH2))} color="var(--muted)" />}
@@ -404,7 +427,7 @@ export default async function PrevisioneAnnualePage() {
             </thead>
             <tbody>
               <tr>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>Oggi</td>
+                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--muted)" }}>{futuro ? `01/01/${ANNO}` : "Oggi"}</td>
                 <td className="col-hide-mobile"></td>
                 <td></td>
                 <td><span className="num" style={{ color: "var(--text)", fontWeight: 600 }}>{formatEuro(saldoAttuale)}</span></td>
