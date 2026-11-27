@@ -1,15 +1,17 @@
 import { DB, queryAll, mapFattura, mapFatturaRicevuta, mapDeal } from "@/lib/notion";
-import { calcolaSaldoDinamico } from "@/lib/utils";
+import { calcolaSaldoDinamico, toDateStr } from "@/lib/utils";
 import { SALDO_BASE, FIDO_BANCARIO } from "@/lib/config";
 import { getAnticipiSoci } from "@/lib/anticipi";
 import { calcolaFlussi } from "@/lib/flussi";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TabNav } from "@/components/shared/TabNav";
 import SimulazioneClient from "@/components/simulazione/SimulazioneClient";
+import SimulazioneAnnoClient, { type FlussoFisso } from "@/components/simulazione/SimulazioneAnnoClient";
 
 export const revalidate = 0;
 
 const ANNO = new Date().getFullYear();
+const ANNO_CORRENTE = ANNO;
 
 export type UscitaFissa = { mese: number; importo: number; label: string; tipo: string; condizionato?: boolean };
 
@@ -71,7 +73,53 @@ async function getData() {
   return { saldoAttuale, daIncassare, daFatturareWon, usciteFisse, entratePerMese, anticipoDefault, meseCorrente, fattore, semestre, fidoBancario: FIDO_BANCARIO };
 }
 
-export default async function SimulazionePage() {
+/** Anno futuro: saldo previsto al 01/01 e flussi reali dell'anno (fino al
+ *  versamento IVA di marzo dell'anno dopo), anticipi a parte perche' modificabili. */
+async function getDataAnno(anno: number) {
+  const [fatturePages, ricevutePages, anticipiSoci] = await Promise.all([
+    queryAll(DB.FATTURE),
+    queryAll(DB.FATTURE_RICEVUTE),
+    getAnticipiSoci(),
+  ]);
+  const fatture  = fatturePages.map(mapFattura);
+  const ricevute = ricevutePages.map(mapFatturaRicevuta);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const inizio = new Date(anno, 0, 1);
+  const limite = new Date(anno + 1, 2, 31);
+  const saldoOggi = calcolaSaldoDinamico(fatture, ricevute, SALDO_BASE.importo, SALDO_BASE.data, anticipiSoci);
+  const flussi = calcolaFlussi({ fatture, ricevute, anticipiSoci, today });
+  const saldoIniziale = Math.round((saldoOggi + flussi.filter(f => f.data < inizio).reduce((s, f) => s + f.importo, 0)) * 100) / 100;
+  const nell = flussi.filter(f => f.data >= inizio && f.data <= limite);
+  const flussiFissi: FlussoFisso[] = nell
+    .filter(f => f.tipo !== "anticipo_soci")
+    .map(f => ({ d: toDateStr(f.data), i: f.importo, l: f.label, t: f.tipo }));
+  const anticipiDefault = nell
+    .filter(f => f.tipo === "anticipo_soci" && f.data.getFullYear() === anno)
+    .map(f => ({ d: toDateStr(f.data), imp: -f.importo }));
+  return { anno, oggi: toDateStr(today), saldoIniziale, fido: FIDO_BANCARIO, flussiFissi, anticipiDefault };
+}
+
+export default async function SimulazionePage({ searchParams }: { searchParams: { anno?: string } }) {
+  const futuro = Number(searchParams?.anno) === ANNO_CORRENTE + 1;
+  const tabs = [
+    { href: "/previsione", label: `Previsione ${ANNO_CORRENTE}`, active: false },
+    { href: `/previsione?anno=${ANNO_CORRENTE + 1}`, label: `Previsione ${ANNO_CORRENTE + 1}`, active: false },
+    { href: "/simulazione", label: `Simula ${ANNO_CORRENTE}`, active: !futuro },
+    { href: `/simulazione?anno=${ANNO_CORRENTE + 1}`, label: `Simula ${ANNO_CORRENTE + 1}`, active: futuro },
+  ];
+  if (futuro) {
+    const data = await getDataAnno(ANNO_CORRENTE + 1);
+    return (
+      <div>
+        <PageHeader
+          title={`Simula ${data.anno}`}
+          subtitle={`Anticipi e fatture ipotetiche sopra i flussi reali · quanto fatturato serve per restare in soglia`}
+        />
+        <TabNav tabs={tabs} />
+        <SimulazioneAnnoClient {...data} />
+      </div>
+    );
+  }
   const data = await getData();
   return (
     <div>
@@ -79,10 +127,7 @@ export default async function SimulazionePage() {
         title="Previsione"
         subtitle={`Modifica importi e date per vedere l'impatto sul saldo fino a dicembre ${ANNO}`}
       />
-      <TabNav tabs={[
-        { href: "/previsione", label: "Previsione anno", active: false },
-        { href: "/simulazione", label: "Simula scenario", active: true },
-      ]} />
+      <TabNav tabs={tabs} />
       <SimulazioneClient {...data} />
     </div>
   );

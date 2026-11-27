@@ -223,13 +223,14 @@ export default async function PrevisioneAnnualePage({ searchParams }: { searchPa
       <TabNav tabs={[
         { href: "/previsione", label: `Previsione ${ANNO_CORRENTE}`, active: !futuro },
         { href: `/previsione?anno=${ANNO_CORRENTE + 1}`, label: `Previsione ${ANNO_CORRENTE + 1}`, active: futuro },
-        { href: "/simulazione", label: "Simula scenario", active: false },
+        { href: "/simulazione", label: `Simula ${ANNO_CORRENTE}`, active: false },
+        { href: `/simulazione?anno=${ANNO_CORRENTE + 1}`, label: `Simula ${ANNO_CORRENTE + 1}`, active: false },
       ]} />
 
       {futuro && (
         <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--muted-2)", lineHeight: 1.6, margin: "-0.75rem 0 1.5rem" }}>
           Conta solo le fatture gia' su Notion (emesse o in bozza con data di incasso) e le uscite note.
-          Deal in pipeline, IRAP e imposte dei soci sono fuori: per quelli usa Simula scenario.
+          Deal in pipeline, IRAP e imposte dei soci sono fuori: per gli scenari usa Simula {ANNO}.
         </div>
       )}
 
